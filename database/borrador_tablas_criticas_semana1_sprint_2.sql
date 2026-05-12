@@ -151,3 +151,115 @@ CREATE TABLE nombramiento (
 
 -- Módulo 2: Estructura normativa y recursividad
 -- Issue 10: Jerarquía de Reglamentos
+
+CREATE TABLE reglamento (
+    id_reglamento    SERIAL       PRIMARY KEY,
+    nombre_normativa VARCHAR(200) NOT NULL,
+    sigla            VARCHAR(20)  NOT NULL UNIQUE
+);
+
+-- Esta tabla se apunta a sí misma (recursiva)
+-- Compuesta por padres e hijos
+CREATE TABLE elemento_normativo (
+    id_elemento           SERIAL       PRIMARY KEY,
+    id_reglamento         INT          NOT NULL REFERENCES reglamento(id_reglamento),
+    id_elemento_padre     INT          REFERENCES elemento_normativo(id_elemento),
+    id_nivel_reglamento   INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    numero_etiqueta       VARCHAR(20)  NOT NULL,
+    contenido_texto       TEXT,
+    orden                 INT          NOT NULL,
+    fecha_inicio_vigencia DATE         NOT NULL,
+    fecha_fin_vigencia    DATE,
+    id_estado_vigencia    INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    CONSTRAINT chk_fechas_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia > fecha_inicio_vigencia)
+);
+
+-- Regla de oro: No pueden existir varios elementos vigentes bajo un mismo padre al mismo tiempo
+CREATE UNIQUE INDEX uix_elemento_vigente
+    ON elemento_normativo (id_elemento_padre, numero_etiqueta)
+    WHERE fecha_fin_vigencia IS NULL;
+
+-- =============================================================================
+
+-- Módulo 3: Operatividad de Sesiones
+-- Issue 10: Jerarquía de Reglamentos
+
+CREATE TABLE sesiones (
+    id_sesion        SERIAL      PRIMARY KEY,
+    id_tipo_modalidad INT        NOT NULL REFERENCES catalogo_maestro(id_item),
+    id_tipo_sesion   INT         NOT NULL REFERENCES catalogo_maestro(id_item),
+    numero_sesion    INT         NOT NULL,
+    fecha            DATE        NOT NULL,
+    link_acta        TEXT,
+    quorum_requerido INT         NOT NULL
+);
+
+CREATE TABLE acta (
+    id_acta          SERIAL    PRIMARY KEY,
+    id_sesion        INT       NOT NULL REFERENCES sesiones(id_sesion),
+    fecha_aprobacion DATE,
+    url_documento    TEXT,
+    observaciones    TEXT
+);
+
+CREATE TABLE propuesta (
+    id_propuesta             SERIAL       PRIMARY KEY,
+    id_reglamento_base       INT          REFERENCES reglamento(id_reglamento),
+    id_etapa_propuesta       INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    id_estado_propuesta      INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    id_propuesta_padre       INT          REFERENCES propuesta(id_propuesta),
+    titulo                   VARCHAR(300) NOT NULL,
+    texto_sustitutivo        TEXT,
+    codigo_air               VARCHAR(30),
+    id_tipo_mayoria_requerida INT         NOT NULL REFERENCES catalogo_maestro(id_item)
+);
+
+-- Bitácora que lleva control del ciclo de vida (cambio de estados) de cada propuesta
+CREATE TABLE bitacora_propuesta (
+    id_registro_bitacora  SERIAL       PRIMARY KEY,
+    id_propuesta          INT          NOT NULL REFERENCES propuesta(id_propuesta),
+    id_reglamento_base    INT          REFERENCES reglamento(id_reglamento),
+    id_etapa_propuesta    INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    id_estado_propuesta   INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    titulo                VARCHAR(300) NOT NULL,
+    codigo_air            VARCHAR(30),
+    fecha_modificacion    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usuario_modificacion  INT          REFERENCES sys_usuario(id_usuario)
+);
+
+-- Relación N:M entre las propuestas y los proponentes (asambleístas)
+CREATE TABLE proponente_propuesta (
+    id_proponente_propuesta SERIAL    PRIMARY KEY,
+    id_propuesta            INT       NOT NULL REFERENCES propuesta(id_propuesta),
+    id_asambleista          INT       NOT NULL REFERENCES asambleista(asambleista_id),
+    fecha_registro          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id_propuesta, id_asambleista)
+);
+
+-- Puente entre las sesiones y propuestas (cuando suceden dentro de la sesión)
+CREATE TABLE punto_agenda (
+    id_punto_agenda  SERIAL       PRIMARY KEY,
+    id_sesion        INT          NOT NULL REFERENCES sesiones(id_sesion),
+    id_propuesta     INT          NOT NULL REFERENCES propuesta(id_propuesta),
+    orden            INT          NOT NULL,
+    descripcion      TEXT
+);
+
+CREATE TABLE resolucion (
+    id_resolucion    SERIAL       PRIMARY KEY,
+    id_sesion        INT          NOT NULL REFERENCES sesiones(id_sesion),
+    id_punto_agenda  INT          NOT NULL REFERENCES punto_agenda(id_punto_agenda),
+    numero_resolucion VARCHAR(30) NOT NULL,
+    fecha_emision    DATE         NOT NULL
+);
+
+-- Registro de quien asiste a cada sesión (base para el porcentaje de asistencia)
+CREATE TABLE asistencia_sesion_plenaria (
+    id_asistencia       SERIAL    PRIMARY KEY,
+    id_asambleista      INT       NOT NULL REFERENCES asambleista(asambleista_id),
+    id_sesion           INT       NOT NULL REFERENCES sesiones(id_sesion),
+    id_estado_asistencia INT      NOT NULL REFERENCES catalogo_maestro(id_item),
+    UNIQUE (id_asambleista, id_sesion)
+);
+
+-- =============================================================================
