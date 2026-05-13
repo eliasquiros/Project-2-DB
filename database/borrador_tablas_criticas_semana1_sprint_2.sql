@@ -188,7 +188,7 @@ CREATE TABLE sesiones (
     id_sesion        SERIAL      PRIMARY KEY,
     id_tipo_modalidad INT        NOT NULL REFERENCES catalogo_maestro(id_item),
     id_tipo_sesion   INT         NOT NULL REFERENCES catalogo_maestro(id_item),
-    numero_sesion    INT         NOT NULL,
+    numero_sesion    VARCHAR(20) NOT NULL,
     fecha            DATE        NOT NULL,
     link_acta        TEXT,
     quorum_requerido INT         NOT NULL
@@ -249,7 +249,7 @@ CREATE TABLE resolucion (
     id_resolucion    SERIAL       PRIMARY KEY,
     id_sesion        INT          NOT NULL REFERENCES sesiones(id_sesion),
     id_punto_agenda  INT          NOT NULL REFERENCES punto_agenda(id_punto_agenda),
-    numero_resolucion VARCHAR(30) NOT NULL,
+    numero_resolucion VARCHAR(30) NOT NULL UNIQUE,
     fecha_emision    DATE         NOT NULL
 );
 
