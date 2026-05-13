@@ -263,3 +263,130 @@ CREATE TABLE asistencia_sesion_plenaria (
 );
 
 -- =============================================================================
+
+-- Módulo 3: Operatividad de Sesiones
+-- Issue 15: Gestión de Reformas
+
+-- Conecta la resolución oficial con el cambio en concreto
+CREATE TABLE reforma_aplicada (
+    id_reforma            SERIAL PRIMARY KEY,
+    id_resolucion         INT    NOT NULL REFERENCES resolucion(id_resolucion),
+    id_elemento_normativo INT    NOT NULL REFERENCES elemento_normativo(id_elemento),
+    id_tipo_reforma       INT    NOT NULL REFERENCES catalogo_maestro(id_item),
+    texto_anterior        TEXT,
+    texto_nuevo           TEXT   NOT NULL,
+    fecha_inicio_vigencia DATE   NOT NULL DEFAULT CURRENT_DATE
+);
+
+-- Asegura que nunca se repita un número de certificación
+CREATE TABLE control_folio (
+    id_control          SERIAL    PRIMARY KEY,
+    anio                INT       NOT NULL UNIQUE,
+    ultimo_numero       INT       NOT NULL DEFAULT 0,
+    fecha_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE certificacion_emitida (
+    id_certificacion   SERIAL      PRIMARY KEY,
+    id_asambleista     INT         NOT NULL REFERENCES asambleista(asambleista_id),
+    folio_unico        VARCHAR(30) NOT NULL UNIQUE,
+    hash_seguridad     VARCHAR(64),
+    fecha_emision      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usuario_secretaria INT         NOT NULL REFERENCES sys_usuario(id_usuario)
+);
+
+-- El folio anulado nunca se reutiliza, solo se marca como inválido
+CREATE TABLE anulacion_certificacion (
+    id_anulacion     SERIAL    PRIMARY KEY,
+    certificacion_id INT       NOT NULL UNIQUE REFERENCES certificacion_emitida(id_certificacion),
+    motivo           TEXT      NOT NULL,
+    fecha            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+
+-- Datos semilla (registros y catálogos mínimos utilizados para realizar pruebas)
+
+-- Catálogo maestro
+INSERT INTO catalogo_maestro (grupo_catalogo, nombre) VALUES
+    -- Tipos de sesión
+    ('TIPO_SESION',       'Ordinaria'),
+    ('TIPO_SESION',       'Extraordinaria'),
+    -- Modalidades
+    ('TIPO_MODALIDAD',    'Presencial'),
+    ('TIPO_MODALIDAD',    'Virtual'),
+    ('TIPO_MODALIDAD',    'Híbrida'),
+    -- Sectores
+    ('SECTOR',            'Docente'),
+    ('SECTOR',            'Estudiante'),
+    ('SECTOR',            'Administrativo'),
+    ('SECTOR',            'Egresado'),
+    -- Niveles del reglamento
+    ('NIVEL_REGLAMENTO',  'Título'),
+    ('NIVEL_REGLAMENTO',  'Capítulo'),
+    ('NIVEL_REGLAMENTO',  'Artículo'),
+    ('NIVEL_REGLAMENTO',  'Inciso'),
+    ('NIVEL_REGLAMENTO',  'Sub-inciso'),
+    -- Estados de propuesta
+    ('ESTADO_PROPUESTA',  'Borrador'),
+    ('ESTADO_PROPUESTA',  'Pendiente de Revisión'),
+    ('ESTADO_PROPUESTA',  'En Discusión'),
+    ('ESTADO_PROPUESTA',  'Aprobada'),
+    ('ESTADO_PROPUESTA',  'Rechazada'),
+    -- Etapas de propuesta
+    ('ETAPA_PROPUESTA',   'Procedencia'),
+    ('ETAPA_PROPUESTA',   'Aprobación'),
+    ('ETAPA_PROPUESTA',   'Dictamen'),
+    -- Tipos de mayoría
+    ('TIPO_MAYORIA',      'Simple'),
+    ('TIPO_MAYORIA',      'Calificada'),
+    -- Estados de vigencia
+    ('ESTADO_VIGENCIA',   'Vigente'),
+    ('ESTADO_VIGENCIA',   'Histórico'),
+    ('ESTADO_VIGENCIA',   'Derogado'),
+    -- Tipos de reforma
+    ('TIPO_REFORMA',      'Modificación'),
+    ('TIPO_REFORMA',      'Derogación'),
+    ('TIPO_REFORMA',      'Adición'),
+    -- Estados de asistencia
+    ('ESTADO_ASISTENCIA', 'Presente'),
+    ('ESTADO_ASISTENCIA', 'Ausente'),
+    ('ESTADO_ASISTENCIA', 'Justificado'),
+    -- Tipos de comisión
+    ('TIPO_COMISION',     'Permanente'),
+    ('TIPO_COMISION',     'Especial'),
+    -- Roles dentro de una comisión
+    ('ROL_COMISION',      'Presidente'),
+    ('ROL_COMISION',      'Secretario'),
+    ('ROL_COMISION',      'Vocal'),
+    -- Tipos de trámite
+    ('TIPO_TRAMITE',      'Informe'),
+    ('TIPO_TRAMITE',      'Moción'),
+    ('TIPO_TRAMITE',      'Varios'),
+    -- Puestos en la AIR
+    ('PUESTO',            'Presidente del Directorio'),
+    ('PUESTO',            'Vicepresidente del Directorio'),
+    ('PUESTO',            'Secretario del Directorio'),
+    ('PUESTO',            'Fiscal'),
+    ('PUESTO',            'Representante');
+
+-- Roles del sistema
+INSERT INTO sys_rol (nombre_rol) VALUES
+    ('SECRETARIA'),
+    ('ASISTENTE'),
+    ('DIRECTORIO'),
+    ('ASAMBLEISTA'),
+    ('CONSULTA');
+
+-- Reglamentos base del TEC
+INSERT INTO reglamento (nombre_normativa, sigla) VALUES
+    ('Estatuto Orgánico del ITCR',                         'EOTEC'),
+    ('Reglamento de la Asamblea Institucional Representativa', 'RAIR'),
+    ('Políticas Generales del ITCR 2022-2026',             'POLTEC'),
+    ('Reglamento del Directorio de la AIR',                'RDAIR'),
+    ('Reglamento de Carrera Profesional del ITCR',         'RCPTEC');
+
+-- Control de folios inicial
+INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
+
+-- =============================================================================
