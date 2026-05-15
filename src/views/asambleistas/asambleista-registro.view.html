@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Asambleísta - Sistema AIR</title>
+</head>
+<body>
+    <h1 id="titulo-formulario">Nuevo Asambleísta</h1>
+
+    <form id="formulario-asambleista">
+        <div>
+            <label for="cedula">Cédula</label>
+            <input type="text" id="cedula" placeholder="0-0000-0000" required />
+        </div>
+
+        <div>
+            <label for="nombre">Nombre completo</label>
+            <input type="text" id="nombre" required />
+        </div>
+
+        <div>
+            <label for="correo">Correo institucional</label>
+            <input type="email" id="correo" placeholder="usuario@tec.ac.cr" />
+        </div>
+
+        <div id="campo-razon" style="display:none">
+            <label for="razon">Razón del cambio</label>
+            <input type="text" id="razon" />
+        </div>
+
+        <button type="submit" id="btn-guardar">Guardar</button>
+        <button type="button" onclick="window.location.href='asambleista-lista.view.html'">Cancelar</button>
+    </form>
+     <script>
+        const params = new URLSearchParams(window.location.search)
+        const id = params.get('id')
+
+        async function cargarAsambleista(id) {
+            const respuesta = await fetch(`/api/asambleistas/${id}`)
+            const datos = await respuesta.json()
+
+            document.getElementById('titulo-formulario').textContent = 'Editar Asambleísta'
+            document.getElementById('cedula').value = datos.cedula
+            document.getElementById('nombre').value = datos.nombre
+            document.getElementById('correo').value = datos.correo_institucional || ''
+            document.getElementById('campo-razon').style.display = 'block'
+        }
+
+        if (id) {
+            cargarAsambleista(id)
+        }
+
+        document.getElementById('formulario-asambleista').addEventListener('submit', async function (e) {
+            e.preventDefault()
+
+            const cedula = document.getElementById('cedula').value
+            const nombre = document.getElementById('nombre').value
+            const correo = document.getElementById('correo').value
+            const razon = document.getElementById('razon').value
+
+            const datos = { cedula, nombre, correo_institucional: correo, razon_cambio: razon }
+
+            const respuesta = id
+                ? await fetch(`/api/asambleistas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
+                : await fetch('/api/asambleistas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
+
+            if (respuesta.ok) {
+                window.location.href = 'asambleista-lista.view.html'
+            } else {
+                const error = await respuesta.json()
+                alert(error.error)
+            }
+        })
+    </script>
+</body>
+</html>
