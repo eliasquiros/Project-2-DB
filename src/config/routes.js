@@ -21,6 +21,10 @@ router.put('/asambleistas/:id', SecretariaController.actualizar)
 router.get('/reglamentos', LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', LegislativoController.obtenerArbol)
 
+// ── REFORMAS ──────────────────────────────────────────────
+router.post('/reformas', LegislativoController.aplicarReforma)
+router.get('/reformas/:id/historial', LegislativoController.obtenerHistorialReformas)
+
 // ── SESIONES ──────────────────────────────────────
 router.get('/sesiones', LegislativoController.obtenerSesiones)
 router.post('/sesiones', LegislativoController.crearSesion)

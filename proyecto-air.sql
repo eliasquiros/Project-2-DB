@@ -390,3 +390,31 @@ INSERT INTO reglamento (nombre_normativa, sigla) VALUES
 INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
 
 -- =============================================================================
+-- Triggers
+-- Issue 15: Gestión de Reformas
+-- tg_vigencia_normativa: Versiona automáticamente artículos al insertar una reforma
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION fn_vigencia_normativa()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_id_historico INT;
+BEGIN
+    SELECT id_item INTO v_id_historico
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Histórico';
+
+    UPDATE elemento_normativo
+    SET fecha_fin_vigencia = (NEW).fecha_inicio_vigencia,
+        id_estado_vigencia = v_id_historico
+    WHERE id_elemento      = (NEW).id_elemento_normativo
+      AND fecha_fin_vigencia IS NULL;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_vigencia_normativa
+BEFORE INSERT ON reforma_aplicada
+FOR EACH ROW
+EXECUTE FUNCTION fn_vigencia_normativa();
