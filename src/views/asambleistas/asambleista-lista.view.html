@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Asambleístas - Sistema AIR</title>
+</head>
+<body>
+    <h1>Registro de Asambleístas</h1>
+
+    <div>
+        <input type="text" id="buscador" placeholder="Buscar por nombre o cédula..." />
+    </div>
+
+    <table id="tabla-asambleistas">
+        <thead>
+            <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpo-tabla">
+            <!-- Los datos se cargan dinámicamente desde la API -->
+        </tbody>
+    </table>
+
+    <button onclick="window.location.href='asambleista-registro.view.html'">
+        + Nuevo Asambleísta
+    </button>
+    <script>
+        async function cargarAsambleistas() {
+            const respuesta = await fetch('/api/asambleistas')
+            const datos = await respuesta.json()
+
+            const cuerpo = document.getElementById('cuerpo-tabla')
+            cuerpo.innerHTML = ''
+
+            datos.forEach(a => {
+                const fila = `
+                    <tr>
+                        <td>${a.cedula}</td>
+                        <td>${a.nombre}</td>
+                        <td>${a.correo_institucional || 'No registrado'}</td>
+                        <td>${a.estado}</td>
+                        <td>
+                            <a href="asambleista-registro.view.html?id=${a.asambleista_id}">Editar</a>
+                        </td>
+                    </tr>
+                `
+                cuerpo.innerHTML += fila
+            })
+        }
+
+        document.getElementById('buscador').addEventListener('input', function () {
+            const texto = this.value.toLowerCase()
+            const filas = document.querySelectorAll('#cuerpo-tabla tr')
+            filas.forEach(fila => {
+                const contenido = fila.textContent.toLowerCase()
+                fila.style.display = contenido.includes(texto) ? '' : 'none'
+            })
+        })
+
+        cargarAsambleistas()
+    </script>
+</body>
+</html>
