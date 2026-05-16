@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Iniciar Sesión - Sistema AIR</title>
+</head>
+<body>
+    <h1>Sistema de Gestión Legislativa AIR</h1>
+    <h2>Iniciar Sesión</h2>
+
+    <form id="formulario-login">
+        <div>
+            <label for="username">Usuario</label>
+            <input type="text" id="username" required />
+        </div>
+
+        <div>
+            <label for="password">Contraseña</label>
+            <input type="password" id="password" required />
+        </div>
+
+        <p id="mensaje-error" style="color:red; display:none"></p>
+
+        <button type="submit">Ingresar</button>
+    </form>
+    <script>
+        document.getElementById('formulario-login').addEventListener('submit', async function (e) {
+            e.preventDefault()
+
+            const username = document.getElementById('username').value
+            const password = document.getElementById('password').value
+            const mensajeError = document.getElementById('mensaje-error')
+
+            mensajeError.style.display = 'none'
+
+            const respuesta = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+
+            const datos = await respuesta.json()
+
+            if (respuesta.ok) {
+                localStorage.setItem('token', datos.token)
+                localStorage.setItem('rol', datos.rol)
+                window.location.href = '../asambleistas/asambleista-lista.view.html'
+            } else {
+                mensajeError.textContent = datos.error
+                mensajeError.style.display = 'block'
+            }
+        })
+    </script>
+</body>
+</html>

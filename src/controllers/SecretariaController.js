@@ -6,6 +6,7 @@
 
 const Asambleista = require('../models/Asambleista')
 const pool = require('../config/db')
+const Nombramiento = require('../models/Nombramiento')
 
 const obtenerTodos = async (req, res) => {
     try {
@@ -104,9 +105,64 @@ const actualizar = async (req, res) => {
     }
 }
 
+// =============================================================================
+// Controlador: SecretariaController.js
+// Módulo 1: Gestión de Identidad y Roles
+// Issue 14: Historial de Nombramientos
+// =============================================================================
+
+const obtenerNombramientos = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        const asambleista = await Asambleista.obtenerPorId(id)
+        if (!asambleista) {
+            return res.status(404).json({ error: 'Asambleísta no encontrado' })
+        }
+
+        const nombramientos = await Nombramiento.obtenerPorAsambleista(id)
+        res.json({
+            asambleista,
+            nombramientos
+        })
+    } catch (error) {
+        console.error('Error al obtener nombramientos:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
+const crearNombramiento = async (req, res) => {
+    try {
+        const { id } = req.params
+        const { sector_id, id_puesto, fecha_inicio, fecha_fin, id_usuario_registro } = req.body
+
+        if (!sector_id || !fecha_inicio) {
+            return res.status(400).json({ error: 'El sector y la fecha de inicio son obligatorios' })
+        }
+
+        const asambleista = await Asambleista.obtenerPorId(id)
+        if (!asambleista) {
+            return res.status(404).json({ error: 'Asambleísta no encontrado' })
+        }
+
+        const hayTraslape = await Nombramiento.validarTraslape(id, fecha_inicio, fecha_fin)
+        if (hayTraslape) {
+            return res.status(400).json({ error: 'El asambleísta ya tiene un nombramiento activo en ese periodo' })
+        }
+
+        const nuevo = await Nombramiento.crear(id, sector_id, id_puesto, fecha_inicio, fecha_fin, id_usuario_registro)
+        res.status(201).json(nuevo)
+    } catch (error) {
+        console.error('Error al crear nombramiento:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
 module.exports = {
     obtenerTodos,
     obtenerPorId,
     crear,
-    actualizar
+    actualizar,
+    obtenerNombramientos,
+    crearNombramiento
 }
