@@ -26,7 +26,7 @@ const obtenerPorAsambleista = async (id_asambleista) => {
     return resultado.rows
 }
 
-// Validat traslape de nombramientos activos
+// Validar traslape de nombramientos activos
 const validarTraslape = async (id_asambleista, fecha_inicio, fecha_fin) => {
     const query = `
         SELECT id_nombramiento
