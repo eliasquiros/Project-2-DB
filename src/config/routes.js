@@ -26,6 +26,10 @@ router.get('/catalogos/sectores', LegislativoController.obtenerSectores)
 router.post('/reformas', LegislativoController.aplicarReforma)
 router.get('/reformas/:id/historial', LegislativoController.obtenerHistorialReformas)
 
+// ── REFORMAS ──────────────────────────────────────────────
+router.post('/reformas', LegislativoController.aplicarReforma)
+router.get('/reformas/:id/historial', LegislativoController.obtenerHistorialReformas)
+
 // ── SESIONES ──────────────────────────────────────
 router.get('/sesiones', LegislativoController.obtenerSesiones)
 router.post('/sesiones', LegislativoController.crearSesion)
