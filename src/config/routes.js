@@ -17,6 +17,10 @@ router.get('/asambleistas/:id', SecretariaController.obtenerPorId)
 router.post('/asambleistas', SecretariaController.crear)
 router.put('/asambleistas/:id', SecretariaController.actualizar)
 
+// ── NOMBRAMIENTOS ──────────────────────────────────
+router.get('/asambleistas/:id/nombramientos', SecretariaController.obtenerNombramientos)
+router.post('/asambleistas/:id/nombramientos', SecretariaController.crearNombramiento)
+
 // ── NORMATIVA ─────────────────────────────────────
 router.get('/reglamentos', LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', LegislativoController.obtenerArbol)
