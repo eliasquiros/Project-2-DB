@@ -24,6 +24,11 @@ router.post('/asambleistas/:id/nombramientos', SecretariaController.crearNombram
 // ── NORMATIVA ─────────────────────────────────────
 router.get('/reglamentos', LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', LegislativoController.obtenerArbol)
+router.get('/catalogos/sectores', LegislativoController.obtenerSectores)
+
+// ── REFORMAS ──────────────────────────────────────────────
+router.post('/reformas', LegislativoController.aplicarReforma)
+router.get('/reformas/:id/historial', LegislativoController.obtenerHistorialReformas)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', LegislativoController.aplicarReforma)

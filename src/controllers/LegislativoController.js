@@ -5,6 +5,7 @@
 // =============================================================================
 
 const Normativa = require('../models/Normativa');
+const pool = require('../config/db')
 
 module.exports = {
     obtenerReglamentos: async (req, res) => {
@@ -75,6 +76,18 @@ module.exports = {
         } catch (error) {
             console.error('Error al obtener historial:', error.message);
             res.status(500).json({ error: 'Error interno al obtener el historial de reformas.' });
+        }
+    },
+    
+    obtenerSectores: async (req, res) => {
+        try {
+            const resultado = await pool.query(
+                `SELECT id_item, nombre FROM catalogo_maestro 
+                 WHERE grupo_catalogo = 'SECTOR' AND activo = true`
+            )
+            res.json(resultado.rows)
+        } catch (error) {
+            res.status(500).json({ error: 'Error al obtener sectores' })
         }
     }
 };
