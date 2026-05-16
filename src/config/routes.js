@@ -20,6 +20,7 @@ router.put('/asambleistas/:id', SecretariaController.actualizar)
 // ── NORMATIVA ─────────────────────────────────────
 router.get('/reglamentos', LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', LegislativoController.obtenerArbol)
+router.get('/catalogos/sectores', LegislativoController.obtenerSectores)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', LegislativoController.aplicarReforma)
