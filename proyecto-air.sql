@@ -174,10 +174,8 @@ CREATE TABLE elemento_normativo (
     CONSTRAINT chk_fechas_vigencia CHECK (fecha_fin_vigencia IS NULL OR fecha_fin_vigencia > fecha_inicio_vigencia)
 );
 
--- Regla de oro: No pueden existir varios elementos vigentes bajo un mismo padre al mismo tiempo
-CREATE UNIQUE INDEX uix_elemento_vigente
-    ON elemento_normativo (id_elemento_padre, numero_etiqueta)
-    WHERE fecha_fin_vigencia IS NULL;
+
+
 
 -- =============================================================================
 
