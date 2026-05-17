@@ -389,6 +389,24 @@ INSERT INTO reglamento (nombre_normativa, sigla) VALUES
 -- Control de folios inicial
 INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
 
+-- =============================================
+-- ÍNDICES
+-- =============================================
+
+-- PARTIAL UNIQUE INDEX: Garantiza la Regla de Oro de integridad normativa.
+-- Impide que existan dos elementos con la misma etiqueta (ej. "Artículo 5")
+-- bajo el mismo padre y en estado Vigente simultáneamente.
+
+-- Referencia: Issue #10 — Jerarquía de Reglamentos
+CREATE UNIQUE INDEX idx_elemento_vigente_unico
+ON elemento_normativo (id_elemento_padre, numero_etiqueta)
+WHERE id_estado_vigencia = (
+    SELECT id_item
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_VIGENCIA'
+      AND nombre = 'Vigente'
+);
+
 -- =============================================================================
 -- Triggers
 -- Issue 15: Gestión de Reformas
