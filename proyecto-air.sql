@@ -459,11 +459,11 @@ BEGIN
       AND estado         = 'ACTIVO'
       AND (
           -- Caso 1: nombramiento vigente sin fecha de fin definida
-          fecha_fin IS NULL
-          OR
+        fecha_fin IS NULL
+        OR
           -- Caso 2: el rango existente se solapa con el nuevo
-          (fecha_inicio <= COALESCE(NEW.fecha_fin, '9999-12-31') 
-           AND fecha_fin >= NEW.fecha_inicio)
+        fecha_inicio <= COALESCE(NEW.fecha_fin, '9999-12-31')
+        AND COALESCE(fecha_fin, '9999-12-31') >= NEW.fecha_inicio
       );
 
     -- Si encontró al menos un traslape, bloquea la inserción
@@ -482,6 +482,48 @@ $$ LANGUAGE plpgsql;
 -- Asocia la función al evento BEFORE INSERT de la tabla nombramiento.
 -- FOR EACH ROW garantiza que se ejecute una vez por cada fila insertada.
 CREATE TRIGGER tg_traslape_sector
-    BEFORE INSERT ON nombramiento
+    BEFORE INSERT OR UPDATE ON nombramiento
     FOR EACH ROW
     EXECUTE FUNCTION fn_validar_traslape_sector();
+
+-- ============================================================
+-- TRIGGER: tg_no_repudio_cert
+-- Issue: #17 — Generador de Atestados
+-- Propósito: Garantizar fe pública e inalterabilidad total.
+--            Ninguna certificación emitida puede modificarse
+--            ni eliminarse bajo ninguna circunstancia.
+--            El RAISE EXCEPTION permite que el Controlador
+--            capture el error y lo muestre correctamente en
+--            la Vista sin que la operación llegue a la BD.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_no_repudio_cert()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Bloquea cualquier intento de UPDATE sin importar qué columna
+    -- se intente modificar, incluyendo hash y folio.
+    IF TG_OP = 'UPDATE' THEN
+        RAISE EXCEPTION
+            'NO_REPUDIO: La certificación con folio % es un documento oficial emitido y no puede ser modificada. Contacte a la Secretaría AIR para su anulación formal.',
+            OLD.folio_unico;
+    END IF;
+
+    -- Bloquea cualquier intento de DELETE directo sobre la tabla.
+    -- Las anulaciones deben registrarse en anulacion_certificacion,
+    -- nunca eliminando el registro original.
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            'NO_REPUDIO: La certificación con folio % no puede ser eliminada. El sistema de fe pública exige inmutabilidad total del registro original.',
+            OLD.folio_unico;
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función a UPDATE y DELETE en certificacion_emitida.
+-- FOR EACH ROW garantiza que se evalúe cada fila afectada.
+CREATE TRIGGER tg_no_repudio_cert
+    BEFORE UPDATE OR DELETE ON certificacion_emitida
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_no_repudio_cert();
