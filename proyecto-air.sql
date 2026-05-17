@@ -527,3 +527,59 @@ CREATE TRIGGER tg_no_repudio_cert
     BEFORE UPDATE OR DELETE ON certificacion_emitida
     FOR EACH ROW
     EXECUTE FUNCTION fn_no_repudio_cert();
+
+-- ============================================================
+-- TRIGGER: tg_folio_secuencial
+-- Issue: #17 — Generador de Atestados
+-- Propósito: Generar y asignar de forma atómica el folio único
+--            institucional en formato DAIR-000-AÑO antes de
+--            insertar la certificación, evitando duplicados
+--            en procesos concurrentes.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_folio_secuencial()
+RETURNS TRIGGER AS $$
+DECLARE
+    anio_actual     INT;
+    nuevo_numero    INT;
+    folio_generado  VARCHAR(30);
+BEGIN
+    -- Obtiene el año actual del servidor de base de datos
+    anio_actual := EXTRACT(YEAR FROM CURRENT_TIMESTAMP)::INT;
+
+    -- Incrementa el contador del año actual de forma atómica.
+    -- UPDATE  RETURNING garantiza que en procesos concurrentes
+    -- cada inserción obtenga un número único sin condiciones de carrera.
+    UPDATE control_folio
+    SET
+        ultimo_numero       = ultimo_numero + 1,
+        fecha_actualizacion = CURRENT_TIMESTAMP
+    WHERE anio = anio_actual
+    RETURNING ultimo_numero INTO nuevo_numero;
+
+    -- Si no existe fila para el año actual la crea con contador en 1.
+    -- Esto ocurre automáticamente al inicio de cada año calendario.
+    IF nuevo_numero IS NULL THEN
+        INSERT INTO control_folio (anio, ultimo_numero, fecha_actualizacion)
+        VALUES (anio_actual, 1, CURRENT_TIMESTAMP)
+        RETURNING ultimo_numero INTO nuevo_numero;
+    END IF;
+
+    -- Construye el folio en formato DAIR-000-AÑO.
+    -- FM elimina espacios de relleno en to_char.
+    -- El número crece naturalmente si supera 3 dígitos (ej. DAIR-1000-2025).
+    folio_generado := 'DAIR-' || to_char(nuevo_numero, 'FM000') || '-' || anio_actual::TEXT;
+
+    -- Asigna el folio generado a la fila que se va a insertar
+    NEW.folio_unico := folio_generado;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función al evento BEFORE INSERT de certificacion_emitida.
+-- FOR EACH ROW garantiza ejecución por cada certificación emitida.
+CREATE TRIGGER tg_folio_secuencial
+    BEFORE INSERT ON certificacion_emitida
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_folio_secuencial();
