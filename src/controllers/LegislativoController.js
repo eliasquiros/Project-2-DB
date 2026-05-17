@@ -7,13 +7,7 @@
 const Normativa = require('../models/Normativa');
 // const pool = require('../config/db')        revisar porque el controlador no puede acceder a pool directamente (viola MVC)
 
-const obtenerReglamentos = async (req, res) => {
-    res.json({ mensaje: 'LegislativoController - obtenerReglamentos OK' })
-}
 
-const obtenerArbol = async (req, res) => {
-    res.json({ mensaje: 'LegislativoController - obtenerArbol OK' })
-}
 
 const obtenerSesiones = async (req, res) => {
     res.json({ mensaje: 'LegislativoController - obtenerSesiones OK' })
@@ -76,6 +70,36 @@ const obtenerHistorialReformas = async (req, res) => {
     } catch (error) {
         console.error('Error al obtener historial:', error.message)
         res.status(500).json({ error: 'Error interno al obtener el historial de reformas.' })
+    }
+}
+// Issue 10 — obtener lista de reglamentos para el selector de la vista
+const obtenerReglamentos = async (req, res) => {
+    try {
+        const reglamentos = await Normativa.obtenerReglamentos()
+        res.json(reglamentos)
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+}
+
+// Issue 10 — obtener árbol recursivo completo de un reglamento
+const obtenerArbol = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        // Validar que el id existe y es numérico
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ error: 'El id del reglamento es inválido o no fue enviado' })
+        }
+
+        const arbol = await Normativa.generarArbolRecursivo(parseInt(id))
+        res.json(arbol)
+    } catch (error) {
+        // Si el modelo lanzó el error de reglamento no encontrado lo diferenciamos
+        if (error.message.includes('No se encontraron elementos')) {
+            return res.status(404).json({ error: error.message })
+        }
+        res.status(500).json({ error: error.message })
     }
 }
 
