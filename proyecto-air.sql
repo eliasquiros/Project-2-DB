@@ -434,3 +434,54 @@ CREATE TRIGGER tg_vigencia_normativa
 BEFORE INSERT ON reforma_aplicada
 FOR EACH ROW
 EXECUTE FUNCTION fn_vigencia_normativa();
+
+-- ============================================================
+-- TRIGGER: tg_traslape_sector
+-- Issue: #14 — Historial de Nombramientos
+-- Propósito: Garantizar integridad histórica impidiendo que un
+--            asambleísta tenga dos nombramientos ACTIVOS con
+--            fechas solapadas simultáneamente.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_validar_traslape_sector()
+RETURNS TRIGGER AS $$
+DECLARE
+    traslape_encontrado INT;
+BEGIN
+    -- Busca si existe algún nombramiento ACTIVO para el mismo asambleísta
+    -- cuyo rango de fechas se solape con el nuevo nombramiento a insertar.
+    -- Casos de traslape cubiertos:
+    --   1. Nombramiento activo sin fecha_fin (indefinido) — siempre traslapa
+    --   2. Nombramiento activo cuya fecha_fin cae después del inicio del nuevo
+    SELECT COUNT(*) INTO traslape_encontrado
+    FROM nombramiento
+    WHERE asambleista_id = NEW.asambleista_id
+      AND estado         = 'ACTIVO'
+      AND (
+          -- Caso 1: nombramiento vigente sin fecha de fin definida
+          fecha_fin IS NULL
+          OR
+          -- Caso 2: el rango existente se solapa con el nuevo
+          (fecha_inicio <= COALESCE(NEW.fecha_fin, '9999-12-31') 
+           AND fecha_fin >= NEW.fecha_inicio)
+      );
+
+    -- Si encontró al menos un traslape, bloquea la inserción
+    IF traslape_encontrado > 0 THEN
+        RAISE EXCEPTION 
+            'TRASLAPE_SECTOR: El asambleísta con ID % ya tiene un nombramiento ACTIVO que se solapa con las fechas indicadas (% a %). Finalice el nombramiento vigente antes de crear uno nuevo.',
+            NEW.asambleista_id,
+            NEW.fecha_inicio,
+            COALESCE(NEW.fecha_fin::TEXT, 'indefinido');
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función al evento BEFORE INSERT de la tabla nombramiento.
+-- FOR EACH ROW garantiza que se ejecute una vez por cada fila insertada.
+CREATE TRIGGER tg_traslape_sector
+    BEFORE INSERT ON nombramiento
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_validar_traslape_sector();
