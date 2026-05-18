@@ -55,27 +55,6 @@ const crear = async (req, res) => {
     }
 }
 
-const crear = async (req, res) => {
-    try {
-        const { cedula, nombre, correo_institucional } = req.body
-
-        if (!cedula || !nombre) {
-            return res.status(400).json({ error: 'La cédula y el nombre son obligatorios' })
-        }
-
-        const existente = await Asambleista.obtenerPorCedula(cedula)
-        if (existente) {
-            return res.status(400).json({ error: 'Ya existe un asambleísta con esa cédula' })
-        }
-
-        const nuevo = await Asambleista.crear(cedula, nombre, correo_institucional)
-        res.status(201).json(nuevo)
-    } catch (error) {
-        console.error('Error al crear asambleísta:', error.message)
-        res.status(500).json({ error: 'Error interno del servidor' })
-    }
-}
-
 const actualizar = async (req, res) => {
     try {
         const { id } = req.params
