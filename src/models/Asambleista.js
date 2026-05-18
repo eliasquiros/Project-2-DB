@@ -4,7 +4,7 @@
 // Issue 9: Catálogo de Asambleístas
 // =============================================================================
 
-const pool = require('../config/db')
+const {pool} = require('../config/db')
 
 // Obtener todos los asambleístas con su estado de nombramiento actual
 const obtenerTodos = async () => {

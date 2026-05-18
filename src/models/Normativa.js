@@ -4,7 +4,7 @@
 // Issue 15: Gestión de Reformas
 // =============================================================================
 
-const pool = require('../config/db');
+const {pool} = require('../config/db');
 
 // Insertar una reforma y registrar el cambio normativo
 const insertarReforma = async (id_resolucion, id_elemento_normativo, id_tipo_reforma, texto_anterior, texto_nuevo, fecha_inicio_vigencia) => {
