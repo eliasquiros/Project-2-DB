@@ -191,7 +191,9 @@
             mostrarCargando()
 
             try {
-                const res = await fetch(`/api/reglamentos/${id}/arbol`)
+                const res = await fetch(`/api/reglamentos/${id}/arbol`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
 
                 if (res.status === 404) {
                     mostrarEstado('Este reglamento no tiene elementos normativos registrados.')
