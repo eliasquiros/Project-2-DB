@@ -7,7 +7,7 @@
 const Normativa = require('../models/Normativa');
 // const pool = require('../config/db')        revisar porque el controlador no puede acceder a pool directamente (viola MVC)
 
-
+const Catalogo = require('../models/Catalogo');
 
 const obtenerSesiones = async (req, res) => {
     res.json({ mensaje: 'LegislativoController - obtenerSesiones OK' })
@@ -103,21 +103,15 @@ const obtenerArbol = async (req, res) => {
     }
 }
 
-// ── CATÁLOGOS ─────────────────────────────────────────────────────────────────
-// PENDIENTE: mover la consulta SQL a un modelo Catalogo.js (viola MVC actual)
-// const obtenerSectores = async (req, res) => {
-//     try {
-//         const resultado = await pool.query(
-//             `SELECT id_item, nombre FROM catalogo_maestro 
-//              WHERE grupo_catalogo = 'SECTOR' AND activo = true`
-//         )
-//         res.json(resultado.rows)
-//     } catch (error) {
-//         res.status(500).json({ error: 'Error al obtener sectores' })
-//     }
-// }
+const obtenerSectores = async (req, res) => {
+    try {
+        const sectores = await Catalogo.obtenerSectores();
+        res.json(sectores);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener sectores' });
+    }
+};
 
-// ── EXPORTS ───────────────────────────────────────────────────────────────────
 module.exports = {
     obtenerReglamentos,
     obtenerArbol,
@@ -128,6 +122,6 @@ module.exports = {
     calcularResultado,
     aplicarReforma,
     obtenerHistorialReformas,
-    
+    obtenerSectores,
 }
 
