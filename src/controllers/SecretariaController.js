@@ -57,8 +57,6 @@ const crear = async (req, res) => {
     }
 }
 
-
-
 const actualizar = async (req, res) => {
     try {
         const { id } = req.params
