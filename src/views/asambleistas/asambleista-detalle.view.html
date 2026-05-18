@@ -49,85 +49,85 @@
         <button type="button" onclick="window.location.href='asambleista-lista.view.html'">Volver</button>
     </form>
     <script>
-        const token = localStorage.getItem('token')
+    const token = localStorage.getItem('token')
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('id')
 
-        const res = await fetch('/api/asambleistas', {
+    if (!id) {
+        window.location.href = 'asambleista-lista.view.html'
+    }
+
+    async function cargarDatos() {
+        const respuesta = await fetch(`/api/asambleistas/${id}/nombramientos`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const datos = await respuesta.json()
+
+        document.getElementById('nombre-asambleista').textContent = datos.asambleista.nombre
+        document.getElementById('cedula-asambleista').textContent = `Cédula: ${datos.asambleista.cedula}`
+        document.getElementById('correo-asambleista').textContent = `Correo: ${datos.asambleista.correo_institucional || 'No registrado'}`
+
+        const cuerpo = document.getElementById('cuerpo-nombramientos')
+        cuerpo.innerHTML = ''
+
+        datos.nombramientos.forEach(n => {
+            const fila = `
+                <tr>
+                    <td>${n.sector}</td>
+                    <td>${n.puesto || 'No asignado'}</td>
+                    <td>${n.fecha_inicio}</td>
+                    <td>${n.fecha_fin || 'Indefinido'}</td>
+                    <td>${n.estado}</td>
+                </tr>
+            `
+            cuerpo.innerHTML += fila
+        })
+    }
+
+    async function cargarSectores() {
+        const respuesta = await fetch('/api/catalogos/sectores', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        const sectores = await respuesta.json()
+
+        const select = document.getElementById('sector_id')
+        sectores.forEach(s => {
+            const opcion = document.createElement('option')
+            opcion.value = s.id_item
+            opcion.textContent = s.nombre
+            select.appendChild(opcion)
+        })
+    }
+
+    document.getElementById('formulario-nombramiento').addEventListener('submit', async function (e) {
+        e.preventDefault()
+
+        const datos = {
+            sector_id: document.getElementById('sector_id').value,
+            fecha_inicio: document.getElementById('fecha_inicio').value,
+            fecha_fin: document.getElementById('fecha_fin').value || null
+        }
+
+        const respuesta = await fetch(`/api/asambleistas/${id}/nombramientos`, {
+            method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        })
-        const params = new URLSearchParams(window.location.search)
-        const id = params.get('id')
-
-        if (!id) {
-            window.location.href = 'asambleista-lista.view.html'
-        }
-
-        async function cargarDatos() {
-            const respuesta = await fetch(`/api/asambleistas/${id}/nombramientos`)
-            const datos = await respuesta.json()
-
-            document.getElementById('nombre-asambleista').textContent = datos.asambleista.nombre
-            document.getElementById('cedula-asambleista').textContent = `Cédula: ${datos.asambleista.cedula}`
-            document.getElementById('correo-asambleista').textContent = `Correo: ${datos.asambleista.correo_institucional || 'No registrado'}`
-
-            const cuerpo = document.getElementById('cuerpo-nombramientos')
-            cuerpo.innerHTML = ''
-
-            datos.nombramientos.forEach(n => {
-                const fila = `
-                    <tr>
-                        <td>${n.sector}</td>
-                        <td>${n.puesto || 'No asignado'}</td>
-                        <td>${n.fecha_inicio}</td>
-                        <td>${n.fecha_fin || 'Indefinido'}</td>
-                        <td>${n.estado}</td>
-                    </tr>
-                `
-                cuerpo.innerHTML += fila
-            })
-        }
-
-        async function cargarSectores() {
-            const respuesta = await fetch('/api/catalogos/sectores')
-            const sectores = await respuesta.json()
-
-            const select = document.getElementById('sector_id')
-            sectores.forEach(s => {
-                const opcion = document.createElement('option')
-                opcion.value = s.id_item
-                opcion.textContent = s.nombre
-                select.appendChild(opcion)
-            })
-        }
-
-        document.getElementById('formulario-nombramiento').addEventListener('submit', async function (e) {
-            e.preventDefault()
-
-            const datos = {
-                sector_id: document.getElementById('sector_id').value,
-                fecha_inicio: document.getElementById('fecha_inicio').value,
-                fecha_fin: document.getElementById('fecha_fin').value || null
-            }
-
-            const respuesta = await fetch(`/api/asambleistas/${id}/nombramientos`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(datos)
-            })
-
-            if (respuesta.ok) {
-                cargarDatos()
-                document.getElementById('formulario-nombramiento').reset()
-            } else {
-                const error = await respuesta.json()
-                alert(error.error)
-            }
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(datos)
         })
 
-        cargarDatos()
-        cargarSectores()
-    </script>
+        if (respuesta.ok) {
+            cargarDatos()
+            document.getElementById('formulario-nombramiento').reset()
+        } else {
+            const error = await respuesta.json()
+            alert(error.error)
+        }
+    })
+
+    cargarDatos()
+    cargarSectores()
+</script>
 </body>
 </html>
