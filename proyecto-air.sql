@@ -398,12 +398,7 @@ INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
 -- Referencia: Issue #10 — Jerarquía de Reglamentos
 CREATE UNIQUE INDEX idx_elemento_vigente_unico
 ON elemento_normativo (id_elemento_padre, numero_etiqueta)
-WHERE id_estado_vigencia = (
-    SELECT id_item
-    FROM catalogo_maestro
-    WHERE grupo_catalogo = 'ESTADO_VIGENCIA'
-      AND nombre = 'Vigente'
-);
+WHERE id_estado_vigencia = 25
 
 -- =============================================================================
 -- Triggers
