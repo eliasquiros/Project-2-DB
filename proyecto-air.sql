@@ -584,3 +584,92 @@ CREATE TRIGGER tg_folio_secuencial
     FOR EACH ROW
     EXECUTE FUNCTION fn_folio_secuencial();
 
+-- ============================================================
+-- TRIGGER: tg_auditoria_total
+-- Issue: #13 — Bitácora de Auditoría
+-- Tablas: asambleista, nombramiento, resolucion
+-- Evento: AFTER INSERT, UPDATE, DELETE
+-- Propósito: Registrar automáticamente en sys_log_auditoria
+--            quién, cuándo y qué cambió en datos sensibles.
+--            El usuario se identifica mediante la variable de
+--            sesión app.usuario_id seteada por Node.js con
+--            SET LOCAL antes de cada operación auditada.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_auditoria_total()
+RETURNS TRIGGER AS $$
+DECLARE
+    usuario_id_log  INT;
+    registro_id_log INT;
+    detalle_log     TEXT;
+BEGIN
+    -- Lee el id del usuario activo desde la variable de sesión.
+    -- El true evita error si la variable no existe, devuelve NULL.
+    usuario_id_log := current_setting('app.usuario_id', true)::INT;
+
+    -- Determina el id del registro afectado según la operación.
+    -- En DELETE usa OLD porque NEW no existe.
+    -- En INSERT y UPDATE usa NEW.
+    IF TG_OP = 'DELETE' THEN
+        CASE TG_TABLE_NAME
+            WHEN 'asambleista'  THEN registro_id_log := OLD.asambleista_id;
+            WHEN 'nombramiento' THEN registro_id_log := OLD.id_nombramiento;
+            WHEN 'resolucion'   THEN registro_id_log := OLD.id_resolucion;
+        END CASE;
+        detalle_log := 'Registro eliminado. ID: ' || registro_id_log::TEXT;
+    ELSE
+        CASE TG_TABLE_NAME
+            WHEN 'asambleista'  THEN registro_id_log := NEW.asambleista_id;
+            WHEN 'nombramiento' THEN registro_id_log := NEW.id_nombramiento;
+            WHEN 'resolucion'   THEN registro_id_log := NEW.id_resolucion;
+        END CASE;
+
+        -- En UPDATE registra qué cambió comparando OLD y NEW
+        IF TG_OP = 'UPDATE' THEN
+            detalle_log := 'Registro actualizado. ID: ' || registro_id_log::TEXT;
+        ELSE
+            detalle_log := 'Registro creado. ID: ' || registro_id_log::TEXT;
+        END IF;
+    END IF;
+
+    -- Inserta el log con todos los datos disponibles.
+    
+    INSERT INTO sys_log_auditoria (
+        id_usuario,
+        accion,
+        tabla_afectada,
+        registro_id,
+        detalle,
+        fecha_hora
+    ) VALUES (
+        usuario_id_log,
+        TG_OP,
+        TG_TABLE_NAME,
+        registro_id_log,
+        detalle_log,
+        CURRENT_TIMESTAMP
+        
+    );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger para tabla asambleista
+CREATE TRIGGER tg_auditoria_asambleista
+    AFTER INSERT OR UPDATE OR DELETE ON asambleista
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
+-- Trigger para tabla nombramiento
+CREATE TRIGGER tg_auditoria_nombramiento
+    AFTER INSERT OR UPDATE OR DELETE ON nombramiento
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
+-- Trigger para tabla resolucion
+CREATE TRIGGER tg_auditoria_resolucion
+    AFTER INSERT OR UPDATE OR DELETE ON resolucion
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
