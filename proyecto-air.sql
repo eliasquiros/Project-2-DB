@@ -300,7 +300,7 @@ CREATE TABLE anulacion_certificacion (
     motivo           TEXT      NOT NULL,
     fecha            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
+ALTER TABLE sys_log_auditoria ADD COLUMN dir_IP VARCHAR(45);     -- Agregar registro de IP al log
 -- =============================================================================
 
 -- Datos semilla (registros y catálogos mínimos utilizados para realizar pruebas)
@@ -434,3 +434,296 @@ CREATE TRIGGER tg_vigencia_normativa
 BEFORE INSERT ON reforma_aplicada
 FOR EACH ROW
 EXECUTE FUNCTION fn_vigencia_normativa();
+
+-- ============================================================
+-- TRIGGER: tg_traslape_sector
+-- Issue: #14 — Historial de Nombramientos
+-- Propósito: Garantizar integridad histórica impidiendo que un
+--            asambleísta tenga dos nombramientos ACTIVOS con
+--            fechas solapadas simultáneamente.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_validar_traslape_sector()
+RETURNS TRIGGER AS $$
+DECLARE
+    traslape_encontrado INT;
+BEGIN
+    -- Busca si existe algún nombramiento ACTIVO para el mismo asambleísta
+    -- cuyo rango de fechas se solape con el nuevo nombramiento a insertar.
+    -- Casos de traslape cubiertos:
+    --   1. Nombramiento activo sin fecha_fin (indefinido) — siempre traslapa
+    --   2. Nombramiento activo cuya fecha_fin cae después del inicio del nuevo
+    SELECT COUNT(*) INTO traslape_encontrado
+    FROM nombramiento
+    WHERE asambleista_id = NEW.asambleista_id
+      AND estado         = 'ACTIVO'
+      AND (
+          -- Caso 1: nombramiento vigente sin fecha de fin definida
+        fecha_fin IS NULL
+        OR
+          -- Caso 2: el rango existente se solapa con el nuevo
+        fecha_inicio <= COALESCE(NEW.fecha_fin, '9999-12-31')
+        AND COALESCE(fecha_fin, '9999-12-31') >= NEW.fecha_inicio
+      );
+
+    -- Si encontró al menos un traslape, bloquea la inserción
+    IF traslape_encontrado > 0 THEN
+        RAISE EXCEPTION 
+            'TRASLAPE_SECTOR: El asambleísta con ID % ya tiene un nombramiento ACTIVO que se solapa con las fechas indicadas (% a %). Finalice el nombramiento vigente antes de crear uno nuevo.',
+            NEW.asambleista_id,
+            NEW.fecha_inicio,
+            COALESCE(NEW.fecha_fin::TEXT, 'indefinido');
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función al evento BEFORE INSERT de la tabla nombramiento.
+-- FOR EACH ROW garantiza que se ejecute una vez por cada fila insertada.
+CREATE TRIGGER tg_traslape_sector
+    BEFORE INSERT OR UPDATE ON nombramiento
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_validar_traslape_sector();
+
+-- ============================================================
+-- TRIGGER: tg_no_repudio_cert
+-- Issue: #17 — Generador de Atestados
+-- Propósito: Garantizar fe pública e inalterabilidad total.
+--            Ninguna certificación emitida puede modificarse
+--            ni eliminarse bajo ninguna circunstancia.
+--            El RAISE EXCEPTION permite que el Controlador
+--            capture el error y lo muestre correctamente en
+--            la Vista sin que la operación llegue a la BD.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_no_repudio_cert()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Bloquea cualquier intento de UPDATE sin importar qué columna
+    -- se intente modificar, incluyendo hash y folio.
+    IF TG_OP = 'UPDATE' THEN
+        RAISE EXCEPTION
+            'NO_REPUDIO: La certificación con folio % es un documento oficial emitido y no puede ser modificada. Contacte a la Secretaría AIR para su anulación formal.',
+            OLD.folio_unico;
+    END IF;
+
+    -- Bloquea cualquier intento de DELETE directo sobre la tabla.
+    -- Las anulaciones deben registrarse en anulacion_certificacion,
+    -- nunca eliminando el registro original.
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            'NO_REPUDIO: La certificación con folio % no puede ser eliminada. El sistema de fe pública exige inmutabilidad total del registro original.',
+            OLD.folio_unico;
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función a UPDATE y DELETE en certificacion_emitida.
+-- FOR EACH ROW garantiza que se evalúe cada fila afectada.
+CREATE TRIGGER tg_no_repudio_cert
+    BEFORE UPDATE OR DELETE ON certificacion_emitida
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_no_repudio_cert();
+
+-- ============================================================
+-- TRIGGER: tg_folio_secuencial
+-- Issue: #17 — Generador de Atestados
+-- Propósito: Generar y asignar de forma atómica el folio único
+--            institucional en formato DAIR-000-AÑO antes de
+--            insertar la certificación, evitando duplicados
+--            en procesos concurrentes.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_folio_secuencial()
+RETURNS TRIGGER AS $$
+DECLARE
+    anio_actual     INT;
+    nuevo_numero    INT;
+    folio_generado  VARCHAR(30);
+BEGIN
+    -- Obtiene el año actual del servidor de base de datos
+    anio_actual := EXTRACT(YEAR FROM CURRENT_TIMESTAMP)::INT;
+
+    -- Incrementa el contador del año actual de forma atómica.
+    -- UPDATE  RETURNING garantiza que en procesos concurrentes
+    -- cada inserción obtenga un número único sin condiciones de carrera.
+    UPDATE control_folio
+    SET
+        ultimo_numero       = ultimo_numero + 1,
+        fecha_actualizacion = CURRENT_TIMESTAMP
+    WHERE anio = anio_actual
+    RETURNING ultimo_numero INTO nuevo_numero;
+
+    -- Si no existe fila para el año actual la crea con contador en 1.
+    -- Esto ocurre automáticamente al inicio de cada año calendario.
+    IF nuevo_numero IS NULL THEN
+        INSERT INTO control_folio (anio, ultimo_numero, fecha_actualizacion)
+        VALUES (anio_actual, 1, CURRENT_TIMESTAMP)
+        RETURNING ultimo_numero INTO nuevo_numero;
+    END IF;
+
+    -- Construye el folio en formato DAIR-000-AÑO.
+    -- FM elimina espacios de relleno en to_char.
+    -- El número crece naturalmente si supera 3 dígitos (ej. DAIR-1000-2025).
+    folio_generado := 'DAIR-' || to_char(nuevo_numero, 'FM000') || '-' || anio_actual::TEXT;
+
+    -- Asigna el folio generado a la fila que se va a insertar
+    NEW.folio_unico := folio_generado;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Asocia la función al evento BEFORE INSERT de certificacion_emitida.
+-- FOR EACH ROW garantiza ejecución por cada certificación emitida.
+CREATE TRIGGER tg_folio_secuencial
+    BEFORE INSERT ON certificacion_emitida
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_folio_secuencial();
+
+-- ============================================================
+-- TRIGGER: tg_auditoria_total
+-- Issue: #13 — Bitácora de Auditoría
+-- Tablas: asambleista, nombramiento, resolucion
+-- Evento: AFTER INSERT, UPDATE, DELETE
+-- Propósito: Registrar automáticamente en sys_log_auditoria
+--            quién, cuándo y qué cambió en datos sensibles.
+--            El usuario se identifica mediante la variable de
+--            sesión app.usuario_id seteada por Node.js con
+--            SET LOCAL antes de cada operación auditada.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_auditoria_total()
+RETURNS TRIGGER AS $$
+DECLARE
+    usuario_id_log  INT;
+    registro_id_log INT;
+    detalle_log     TEXT;
+BEGIN
+    -- Lee el id del usuario activo desde la variable de sesión.
+    -- El true evita error si la variable no existe, devuelve NULL.
+    usuario_id_log := current_setting('app.usuario_id', true)::INT;
+
+    -- Determina el id del registro afectado según la operación.
+    -- En DELETE usa OLD porque NEW no existe.
+    -- En INSERT y UPDATE usa NEW.
+    IF TG_OP = 'DELETE' THEN
+        CASE TG_TABLE_NAME
+            WHEN 'asambleista'  THEN registro_id_log := OLD.asambleista_id;
+            WHEN 'nombramiento' THEN registro_id_log := OLD.id_nombramiento;
+            WHEN 'resolucion'   THEN registro_id_log := OLD.id_resolucion;
+        END CASE;
+        detalle_log := 'Registro eliminado. ID: ' || registro_id_log::TEXT;
+    ELSE
+        CASE TG_TABLE_NAME
+            WHEN 'asambleista'  THEN registro_id_log := NEW.asambleista_id;
+            WHEN 'nombramiento' THEN registro_id_log := NEW.id_nombramiento;
+            WHEN 'resolucion'   THEN registro_id_log := NEW.id_resolucion;
+        END CASE;
+
+        -- En UPDATE registra qué cambió comparando OLD y NEW
+        IF TG_OP = 'UPDATE' THEN
+            detalle_log := 'Registro actualizado. ID: ' || registro_id_log::TEXT;
+        ELSE
+            detalle_log := 'Registro creado. ID: ' || registro_id_log::TEXT;
+        END IF;
+    END IF;
+
+    -- Inserta el log con todos los datos disponibles.
+    
+    INSERT INTO sys_log_auditoria (
+        id_usuario,
+        accion,
+        tabla_afectada,
+        registro_id,
+        detalle,
+        fecha_hora
+    ) VALUES (
+        usuario_id_log,
+        TG_OP,
+        TG_TABLE_NAME,
+        registro_id_log,
+        detalle_log,
+        CURRENT_TIMESTAMP
+        
+    );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger para tabla asambleista
+CREATE TRIGGER tg_auditoria_asambleista
+    AFTER INSERT OR UPDATE OR DELETE ON asambleista
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
+-- Trigger para tabla nombramiento
+CREATE TRIGGER tg_auditoria_nombramiento
+    AFTER INSERT OR UPDATE OR DELETE ON nombramiento
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
+-- Trigger para tabla resolucion
+CREATE TRIGGER tg_auditoria_resolucion
+    AFTER INSERT OR UPDATE OR DELETE ON resolucion
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_auditoria_total();
+
+CREATE OR REPLACE FUNCTION fn_validar_quorum()
+RETURNS TRIGGER AS $$
+DECLARE
+    quorum_requerido_sesion  INT;
+    presentes_sesion         INT;
+    id_sesion_resolucion     INT;
+    id_estado_presente       INT;
+BEGIN
+    -- Obtiene el id_sesion a través del punto_agenda
+    -- ya que resolucion referencia id_punto_agenda
+    SELECT pa.id_sesion INTO id_sesion_resolucion
+    FROM punto_agenda pa
+    WHERE pa.id_punto_agenda = NEW.id_punto_agenda;
+
+    IF id_sesion_resolucion IS NULL THEN
+        RAISE EXCEPTION
+            'QUORUM_ERROR: No se encontró la sesión asociada al punto de agenda %.',
+            NEW.id_punto_agenda;
+    END IF;
+
+    -- Obtiene el quórum mínimo requerido definido en la sesión
+    SELECT quorum_requerido INTO quorum_requerido_sesion
+    FROM sesiones
+    WHERE id_sesion = id_sesion_resolucion;
+
+    -- Obtiene el id del estado Presente desde el catálogo
+    SELECT id_estado_asistencia INTO id_estado_presente
+    FROM catalogo_asistencia_sesion_comision
+    WHERE nombre ILIKE 'Presente'
+    LIMIT 1;
+
+    -- Cuenta los asambleístas presentes en la sesión
+    SELECT COUNT(*) INTO presentes_sesion
+    FROM asistencia_sesion_plenaria
+    WHERE id_sesion          = id_sesion_resolucion
+      AND id_estado_asistencia = id_estado_presente;
+
+    -- Bloquea la inserción si no se alcanza el quórum mínimo
+    IF presentes_sesion < quorum_requerido_sesion THEN
+        RAISE EXCEPTION
+            'QUORUM_INSUFICIENTE: La sesión % requiere % miembros presentes para sesionar legalmente. Presentes registrados: %.',
+            id_sesion_resolucion,
+            quorum_requerido_sesion,
+            presentes_sesion;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tg_validar_quorum
+    BEFORE INSERT ON resolucion
+    FOR EACH ROW
+    EXECUTE FUNCTION fn_validar_quorum();

@@ -6,42 +6,43 @@ const AuthController = require('../controllers/AuthController')
 const SecretariaController = require('../controllers/SecretariaController')
 const LegislativoController = require('../controllers/LegislativoController')
 const ReporteController = require('../controllers/ReporteController')
+const { verificarToken } = require('./middleware')
 
 // ── AUTH ──────────────────────────────────────────
 router.post('/auth/login', AuthController.login)
 router.post('/auth/logout', AuthController.logout)
 
 // ── ASAMBLEÍSTAS ──────────────────────────────────
-router.get('/asambleistas', SecretariaController.obtenerTodos)
-router.get('/asambleistas/:id', SecretariaController.obtenerPorId)
-router.post('/asambleistas', SecretariaController.crear)
-router.put('/asambleistas/:id', SecretariaController.actualizar)
+router.get('/asambleistas',verificarToken, SecretariaController.obtenerTodos)
+router.get('/asambleistas/:id', verificarToken, SecretariaController.obtenerPorId)
+router.post('/asambleistas', verificarToken, SecretariaController.crear)
+router.put('/asambleistas/:id', verificarToken, SecretariaController.actualizar)
 
 // ── NOMBRAMIENTOS ──────────────────────────────────
-router.get('/asambleistas/:id/nombramientos', SecretariaController.obtenerNombramientos)
-router.post('/asambleistas/:id/nombramientos', SecretariaController.crearNombramiento)
+router.get('/asambleistas/:id/nombramientos', verificarToken, SecretariaController.obtenerNombramientos)
+router.post('/asambleistas/:id/nombramientos', verificarToken, SecretariaController.crearNombramiento)
 
 // ── NORMATIVA ─────────────────────────────────────
-router.get('/reglamentos', LegislativoController.obtenerReglamentos)
-router.get('/reglamentos/:id/arbol', LegislativoController.obtenerArbol)
-router.get('/catalogos/sectores', LegislativoController.obtenerSectores)
+router.get('/reglamentos',verificarToken, LegislativoController.obtenerReglamentos)
+router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obtenerArbol)
+router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
 
 // ── REFORMAS ──────────────────────────────────────────────
-router.post('/reformas', LegislativoController.aplicarReforma)
-router.get('/reformas/:id/historial', LegislativoController.obtenerHistorialReformas)
+router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
+router.get('/reformas/:id/historial', verificarToken, LegislativoController.obtenerHistorialReformas)
 
 
 // ── SESIONES ──────────────────────────────────────
-router.get('/sesiones', LegislativoController.obtenerSesiones)
-router.post('/sesiones', LegislativoController.crearSesion)
-router.get('/sesiones/:id/quorum', LegislativoController.validarQuorum)
+router.get('/sesiones', verificarToken, LegislativoController.obtenerSesiones)
+router.post('/sesiones', verificarToken, LegislativoController.crearSesion)
+router.get('/sesiones/:id/quorum', verificarToken, LegislativoController.validarQuorum)
 
 // ── VOTACIONES ────────────────────────────────────
-router.post('/votaciones', LegislativoController.registrarVoto)
-router.get('/votaciones/:id/resultado', LegislativoController.calcularResultado)
+router.post('/votaciones', verificarToken, LegislativoController.registrarVoto)
+router.get('/votaciones/:id/resultado', verificarToken, LegislativoController.calcularResultado)
 
 // ── CERTIFICACIONES ───────────────────────────────
-router.post('/certificaciones', ReporteController.generarCertificacion)
-router.get('/certificaciones/:folio', ReporteController.obtenerPorFolio)
+router.post('/certificaciones', verificarToken, ReporteController.generarCertificacion)
+router.get('/certificaciones/:folio', verificarToken, ReporteController.obtenerPorFolio)
 
 module.exports = router
