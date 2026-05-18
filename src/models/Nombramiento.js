@@ -4,7 +4,7 @@
 // Issue 14: Historial de Nombramientos
 // =============================================================================
 
-const pool = require('../config/db')
+const {pool} = require('../config/db')
 
 // Obtener todos los nombramientos históricos de un asambleísta 
 const obtenerPorAsambleista = async (id_asambleista) => {

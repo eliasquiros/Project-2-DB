@@ -4,7 +4,7 @@
 // Issue 0: Seguridad RBAC
 // =============================================================================
 
-const pool = require('../config/db')
+const { pool } = require('../config/db')
 
 // Buscar usuario por username y obtener su rol
 const obtenerPorUsername = async (username) => {

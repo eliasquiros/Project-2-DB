@@ -3,7 +3,7 @@
 // Consultas SQL para los catálogos maestros del sistema
 // =============================================================================
 
-const pool = require('../config/db');
+const {pool} = require('../config/db');
 
 const obtenerSectores = async () => {
     const resultado = await pool.query(
