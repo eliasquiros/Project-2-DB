@@ -387,6 +387,18 @@ INSERT INTO reglamento (nombre_normativa, sigla) VALUES
 -- Control de folios inicial
 INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
 
+-- Insertar usuarios
+INSERT INTO sys_usuario (username, password_hash, email, activo) VALUES
+('secretaria', '1234', 'secretaria@tec.ac.cr', true),
+('asambleista', '1234', 'asambleista@tec.ac.cr', true);
+
+-- Asignar roles
+INSERT INTO sys_usuario_rol (id_usuario, id_rol) VALUES
+((SELECT id_usuario FROM sys_usuario WHERE username = 'secretaria'),
+ (SELECT id_rol FROM sys_rol WHERE nombre_rol = 'SECRETARIA')),
+((SELECT id_usuario FROM sys_usuario WHERE username = 'asambleista'),
+ (SELECT id_rol FROM sys_rol WHERE nombre_rol = 'ASAMBLEISTA'));
+
 -- =============================================
 -- ÍNDICES
 -- =============================================
