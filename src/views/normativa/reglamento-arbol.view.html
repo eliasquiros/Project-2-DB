@@ -148,15 +148,11 @@
         document.addEventListener('DOMContentLoaded', cargarReglamentos)
         const token = localStorage.getItem('token')
 
-        const res = await fetch('/api/normativa', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        })
         async function cargarReglamentos() {
             try {
-                const res = await fetch('/api/reglamentos')
+                const res = await fetch('/api/reglamentos', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
 
                 if (!res.ok) throw new Error('Error al obtener reglamentos')
 
