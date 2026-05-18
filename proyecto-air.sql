@@ -300,7 +300,7 @@ CREATE TABLE anulacion_certificacion (
     motivo           TEXT      NOT NULL,
     fecha            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
+ALTER TABLE sys_log_auditoria ADD COLUMN dir_IP VARCHAR(45);     -- Agregar registro de IP al log
 -- =============================================================================
 
 -- Datos semilla (registros y catálogos mínimos utilizados para realizar pruebas)
@@ -583,3 +583,4 @@ CREATE TRIGGER tg_folio_secuencial
     BEFORE INSERT ON certificacion_emitida
     FOR EACH ROW
     EXECUTE FUNCTION fn_folio_secuencial();
+
