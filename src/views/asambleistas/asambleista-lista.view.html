@@ -30,6 +30,14 @@
         + Nuevo Asambleísta
     </button>
     <script>
+        const token = localStorage.getItem('token')
+
+        const res = await fetch('/api/asambleistas', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
         async function cargarAsambleistas() {
             const respuesta = await fetch('/api/asambleistas')
             const datos = await respuesta.json()

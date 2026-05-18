@@ -48,6 +48,14 @@
         <button type="button" onclick="window.location.href='asambleista-lista.view.html'">Volver</button>
     </form>
     <script>
+        const token = localStorage.getItem('token')
+
+        const res = await fetch('/api/asambleistas', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
         const params = new URLSearchParams(window.location.search)
         const id = params.get('id')
 

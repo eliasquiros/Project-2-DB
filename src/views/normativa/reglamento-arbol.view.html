@@ -145,7 +145,14 @@
 
         // Al cargar la página trae todos los reglamentos y llena el selector
         document.addEventListener('DOMContentLoaded', cargarReglamentos)
+        const token = localStorage.getItem('token')
 
+        const res = await fetch('/api/normativa', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        })
         async function cargarReglamentos() {
             try {
                 const res = await fetch('/api/reglamentos')
