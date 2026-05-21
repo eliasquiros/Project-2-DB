@@ -709,7 +709,7 @@ BEGIN
     SELECT id_estado_asistencia INTO id_estado_presente
     -- Correción: leer desde catalogo_maestro, no desde la tabla que no existe
     FROM catalogo_maestro
-    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA"
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
         AND nombre = 'Presente'
     LIMIT 1;
 
