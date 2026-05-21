@@ -850,8 +850,351 @@ CREATE TABLE justificaciones_por_informe (
 );
 
 -- =============================================================================
+
 -- Módulo 3: Sesiones y Trámite Legislativo
 -- Funciones de sesiones
--- Issue 12: Motor de votaciones
+-- Issue 11: Control de quórum
+
+-- Valida la votación para un quórum de manera manual
+CREATE OR REPLACE FUNCTION validar_quorum_legal(p_id_sesion INT)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_presentes     INT;
+    v_quorum_req    INT;
+    v_id_presente   INT;
+BEGIN
+    SELECT id_item INTO v_id_presente
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
+      AND nombre = 'Presente'
+    LIMIT 1;
+
+    SELECT COUNT(*) INTO v_presentes
+    FROM asistencia_sesion_plenaria
+    WHERE id_sesion           = p_id_sesion
+      AND id_estado_asistencia = v_id_presente;
+
+    SELECT quorum_requerido INTO v_quorum_req
+    FROM sesiones
+    WHERE id_sesion = p_id_sesion;
+
+    RETURN v_presentes >= v_quorum_req;
+END;
+$$ LANGUAGE plpgsql;
+
 -- =============================================================================
 
+-- Issue 12: Motor de votaciones
+
+CREATE OR REPLACE FUNCTION calcular_resultado_votacion(
+    p_votos_favor  INT,
+    p_votos_contra INT,
+    p_tipo_mayoria VARCHAR(20)   -- 'Simple' o 'Calificada'
+)
+RETURNS VARCHAR(20) AS $$
+DECLARE
+    v_total_emitidos INT;
+BEGIN
+    v_total_emitidos := p_votos_favor + p_votos_contra;
+
+    IF p_tipo_mayoria = 'Simple' THEN
+        IF p_votos_favor > p_votos_contra THEN
+            RETURN 'APROBADO';
+        ELSE
+            RETURN 'RECHAZADO';
+        END IF;
+
+    ELSIF p_tipo_mayoria = 'Calificada' THEN
+        -- 66% sobre votos emitidos, no sobre total de miembros
+        IF v_total_emitidos > 0
+           AND (p_votos_favor::DECIMAL / v_total_emitidos) >= 0.66 THEN
+            RETURN 'APROBADO';
+        ELSE
+            RETURN 'RECHAZADO';
+        END IF;
+
+    ELSE
+        RAISE EXCEPTION 'Tipo de mayoría desconocido: %', p_tipo_mayoria;
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Calcula la asistencia de un asambleísta a las sesiones en un rango de fechas (sesiones asistidas, total convocadas, porcentaje)
+CREATE OR REPLACE FUNCTION calcular_porcentaje_asistencia(
+    p_id_asambleista INT,
+    p_fecha_inicio   DATE,
+    p_fecha_fin      DATE
+)
+RETURNS TABLE(
+    sesiones_asistidas INT,
+    sesiones_totales   INT,
+    porcentaje         DECIMAL
+) AS $$
+DECLARE
+    v_id_presente INT;
+BEGIN
+    SELECT id_item INTO v_id_presente
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
+      AND nombre = 'Presente'
+    LIMIT 1;
+
+    RETURN QUERY
+    SELECT
+        COUNT(CASE WHEN asp.id_estado_asistencia = v_id_presente THEN 1 END)::INT,
+        COUNT(*)::INT,
+        ROUND(
+            COUNT(CASE WHEN asp.id_estado_asistencia = v_id_presente THEN 1 END)::DECIMAL
+            / NULLIF(COUNT(*), 0) * 100,
+        2) AS porcentaje
+    FROM asistencia_sesion_plenaria asp
+    JOIN sesiones s ON s.id_sesion = asp.id_sesion
+    WHERE asp.id_asambleista = p_id_asambleista
+      AND s.fecha BETWEEN p_fecha_inicio AND p_fecha_fin;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
+
+-- Issue 6: Motor de notas condicionales
+
+CREATE TABLE catalogo_nota_condicional (
+    id_nota             SERIAL       PRIMARY KEY,
+    codigo_tipo_origen  VARCHAR(50)  NOT NULL UNIQUE,
+    descripcion_interna VARCHAR(200),
+    texto_nota          TEXT         NOT NULL,
+    activo              BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+INSERT INTO catalogo_nota_condicional (codigo_tipo_origen, descripcion_interna, texto_nota) VALUES
+(
+    'CI_DIRECTO',
+    'Propuesta enviada directamente por el Consejo Institucional',
+    'La Secretaría de la AIR no dispone de registros de asistencia para esta etapa, ya que la propuesta fue presentada directamente por el Consejo Institucional.'
+),
+(
+    'DIEZ_PORCIENTO',
+    'Propuesta por el 10% de la Asamblea en etapa de procedencia',
+    'La Secretaría de la AIR no dispone de registros de asistencia en etapa de procedencia para propuestas presentadas por el 10% de los asambleístas.'
+);
+
+CREATE OR REPLACE FUNCTION obtener_nota_certificacion(p_id_propuesta INT)
+RETURNS TEXT AS $$
+DECLARE
+    v_nota        TEXT := NULL;
+    v_etapa_nombre VARCHAR(100);
+BEGIN
+    SELECT cm.nombre INTO v_etapa_nombre
+    FROM propuesta p
+    JOIN catalogo_maestro cm ON cm.id_item = p.id_etapa_propuesta
+    WHERE p.id_propuesta = p_id_propuesta;
+
+    IF v_etapa_nombre ILIKE '%Consejo Institucional%' THEN
+        SELECT texto_nota INTO v_nota
+        FROM catalogo_nota_condicional
+        WHERE codigo_tipo_origen = 'CI_DIRECTO' AND activo = TRUE;
+
+    ELSIF v_etapa_nombre ILIKE '%Procedencia%' THEN
+        SELECT texto_nota INTO v_nota
+        FROM catalogo_nota_condicional
+        WHERE codigo_tipo_origen = 'DIEZ_PORCIENTO' AND activo = TRUE;
+    END IF;
+
+    RETURN v_nota;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
+
+-- Issue 10: Parte II e Issue 16: Vistas SQL
+
+-- Filtra solo los elementos donde no hay fecha de vigencia, no se puede ver un artículo derogado
+CREATE OR REPLACE VIEW v_reglamento_vigente AS
+SELECT
+    en.id_elemento,
+    r.nombre_normativa,
+    r.sigla,
+    cm_nivel.nombre       AS nivel,
+    en.numero_etiqueta,
+    en.contenido_texto,
+    en.orden,
+    en.id_elemento_padre,
+    en.fecha_inicio_vigencia
+FROM elemento_normativo en
+JOIN reglamento      r        ON r.id_reglamento     = en.id_reglamento
+JOIN catalogo_maestro cm_nivel ON cm_nivel.id_item   = en.id_nivel_reglamento
+JOIN catalogo_maestro cm_vig   ON cm_vig.id_item     = en.id_estado_vigencia
+WHERE en.fecha_fin_vigencia IS NULL
+  AND cm_vig.grupo_catalogo  = 'ESTADO_VIGENCIA'
+  AND cm_vig.nombre          = 'Vigente';
+
+-- Une las sesiones con sus respectivas agendas y propuestas
+CREATE OR REPLACE VIEW v_agenda_sesion AS
+SELECT
+    s.id_sesion,
+    s.numero_sesion,
+    s.fecha,
+    cm_ts.nombre    AS tipo_sesion,
+    cm_tm.nombre    AS modalidad,
+    pa.id_punto_agenda,
+    pa.orden,
+    pa.descripcion,
+    p.id_propuesta,
+    p.titulo        AS propuesta_titulo,
+    cm_et.nombre    AS etapa,
+    cm_es.nombre    AS estado_propuesta
+FROM sesiones s
+JOIN catalogo_maestro cm_ts ON cm_ts.id_item = s.id_tipo_sesion
+JOIN catalogo_maestro cm_tm ON cm_tm.id_item = s.id_tipo_modalidad
+LEFT JOIN punto_agenda pa   ON pa.id_sesion   = s.id_sesion
+LEFT JOIN propuesta    p    ON p.id_propuesta  = pa.id_propuesta
+LEFT JOIN catalogo_maestro cm_et ON cm_et.id_item = p.id_etapa_propuesta
+LEFT JOIN catalogo_maestro cm_es ON cm_es.id_item = p.id_estado_propuesta
+ORDER BY s.fecha DESC, pa.orden;
+
+-- Para dashboard de issue 16; certificaciones por mes
+CREATE OR REPLACE VIEW v_certificaciones_por_mes AS
+SELECT
+    EXTRACT(YEAR  FROM fecha_emision)::INT AS anno,
+    EXTRACT(MONTH FROM fecha_emision)::INT AS mes,
+    COUNT(*)                               AS total_emitidas,
+    COUNT(CASE WHEN estado = 'ANULADO' THEN 1 END) AS total_anuladas
+FROM certificacion_emitida
+GROUP BY anno, mes
+ORDER BY anno DESC, mes DESC;
+
+-- Agregar columna "estado" a la tabla certificacion_emitida
+ALTER TABLE certificacion_emitida
+    ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+
+-- Agregar vistas para reportes y dashboard
+CREATE OR REPLACE VIEW v_asambleistas_mas_consultados AS
+SELECT
+    a.asambleista_id,
+    a.nombre,
+    a.cedula,
+    COUNT(ce.id_certificacion) AS total_certificaciones,
+    MAX(ce.fecha_emision)      AS ultima_certificacion
+FROM asambleista a
+JOIN certificacion_emitida ce ON ce.id_asambleista = a.asambleista_id
+GROUP BY a.asambleista_id, a.nombre, a.cedula
+ORDER BY total_certificaciones DESC;
+
+CREATE OR REPLACE VIEW v_propuestas_por_estado AS
+SELECT
+    cm.nombre  AS estado,
+    COUNT(*)   AS total
+FROM propuesta p
+JOIN catalogo_maestro cm ON cm.id_item = p.id_estado_propuesta
+GROUP BY cm.nombre
+ORDER BY total DESC;
+
+-- =============================================================================
+
+-- Módulo 5: Motor de Certificaciones y Fe Pública
+-- Issue 17: Motor de Generación de Certificaciones Legales
+
+-- Vista consolidada para el motor de certificaciones
+CREATE OR REPLACE VIEW v_hoja_vida_asambleista AS
+
+-- Parte 1: participaciones como proponente
+SELECT
+    a.asambleista_id,
+    a.nombre,
+    a.cedula,
+    a.correo_institucional,
+    n.id_nombramiento,
+    n.fecha_inicio           AS nombramiento_inicio,
+    n.fecha_fin              AS nombramiento_fin,
+    n.estado                 AS nombramiento_estado,
+    cm_sec.nombre            AS sector,
+    cm_pue.nombre            AS puesto,
+    p.id_propuesta,
+    p.titulo                 AS propuesta_titulo,
+    p.codigo_air,
+    cm_et.nombre             AS etapa_propuesta,
+    cm_es.nombre             AS estado_propuesta,
+    s.id_sesion,
+    s.numero_sesion,
+    s.fecha                  AS fecha_sesion,
+    res.numero_resolucion,
+    res.fecha_emision        AS fecha_resolucion,
+    'PROPONENTE'::VARCHAR    AS tipo_participacion
+FROM asambleista a
+JOIN nombramiento         n    ON n.asambleista_id   = a.asambleista_id
+JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item     = n.sector_id
+JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item     = n.id_puesto
+JOIN proponente_propuesta pp   ON pp.id_asambleista  = a.asambleista_id
+JOIN propuesta            p    ON p.id_propuesta     = pp.id_propuesta
+JOIN catalogo_maestro  cm_et   ON cm_et.id_item      = p.id_etapa_propuesta
+JOIN catalogo_maestro  cm_es   ON cm_es.id_item      = p.id_estado_propuesta
+LEFT JOIN punto_agenda    pa   ON pa.id_propuesta    = p.id_propuesta
+LEFT JOIN sesiones        s    ON s.id_sesion        = pa.id_sesion
+LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda
+
+UNION ALL
+
+-- Parte 2: participaciones como integrante de comisión
+SELECT
+    a.asambleista_id,
+    a.nombre,
+    a.cedula,
+    a.correo_institucional,
+    n.id_nombramiento,
+    n.fecha_inicio,
+    n.fecha_fin,
+    n.estado,
+    cm_sec.nombre,
+    cm_pue.nombre,
+    p.id_propuesta,
+    p.titulo,
+    p.codigo_air,
+    cm_et.nombre,
+    cm_es.nombre,
+    s.id_sesion,
+    s.numero_sesion,
+    s.fecha,
+    res.numero_resolucion,
+    res.fecha_emision,
+    'COMISION'::VARCHAR
+FROM asambleista a
+JOIN nombramiento         n    ON n.asambleista_id    = a.asambleista_id
+JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item      = n.sector_id
+JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item      = n.id_puesto
+JOIN integrante_comision ic    ON ic.id_asambleista   = a.asambleista_id
+JOIN propositos_comision pcm   ON pcm.id_comision     = ic.id_comision
+JOIN propuesta            p    ON p.id_propuesta      = pcm.id_propuesta
+JOIN catalogo_maestro  cm_et   ON cm_et.id_item       = p.id_etapa_propuesta
+JOIN catalogo_maestro  cm_es   ON cm_es.id_item       = p.id_estado_propuesta
+LEFT JOIN punto_agenda    pa   ON pa.id_propuesta     = p.id_propuesta
+LEFT JOIN sesiones        s    ON s.id_sesion         = pa.id_sesion
+LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda;
+
+-- Función que la consume
+CREATE OR REPLACE FUNCTION obtener_historial_atestados(p_id_asambleista INT)
+RETURNS TABLE(
+    propuesta_titulo    TEXT,
+    codigo_air          VARCHAR,
+    etapa_propuesta     VARCHAR,
+    estado_propuesta    VARCHAR,
+    tipo_participacion  VARCHAR,
+    fecha_sesion        DATE,
+    numero_sesion       VARCHAR,
+    numero_resolucion   VARCHAR
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        hv.propuesta_titulo::TEXT,
+        hv.codigo_air,
+        hv.etapa_propuesta,
+        hv.estado_propuesta,
+        hv.tipo_participacion,
+        hv.fecha_sesion,
+        hv.numero_sesion,
+        hv.numero_resolucion
+    FROM v_hoja_vida_asambleista hv
+    WHERE hv.asambleista_id = p_id_asambleista
+    ORDER BY hv.fecha_sesion NULLS LAST;
+END;
+$$ LANGUAGE plpgsql;
