@@ -706,7 +706,7 @@ BEGIN
     WHERE id_sesion = id_sesion_resolucion;
 
     -- Obtiene el id del estado Presente desde el catálogo
-    SELECT id_estado_asistencia INTO id_estado_presente
+    SELECT id_item INTO id_estado_presente
     -- Correción: leer desde catalogo_maestro, no desde la tabla que no existe
     FROM catalogo_maestro
     WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
@@ -736,3 +736,122 @@ CREATE TRIGGER tg_validar_quorum
     BEFORE INSERT ON resolucion
     FOR EACH ROW
     EXECUTE FUNCTION fn_validar_quorum();
+
+-- =============================================================================
+
+-- Sprint 3 - Semana 1
+-- Tablas necesarias
+-- Issues #5, #6, #7, #10 (Parte II), #11, #12, #13, #16, #17
+
+-- =============================================================================
+
+-- Módulo 4: Comisiones e Informes
+-- Issue 7: Gestión de comisiones y proponentes
+
+CREATE TABLE comision (
+    id_comision      SERIAL       PRIMARY KEY,
+    id_tipo_comision INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    nombre_comision  VARCHAR(255) NOT NULL,
+    fecha_creacion   DATE         NOT NULL DEFAULT CURRENT_DATE,
+    activo           BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+-- Relación N:M entre asambleístas y comisiones
+CREATE TABLE integrante_comision (
+    id_integrante_comision  SERIAL      PRIMARY KEY,
+    id_comision             INT         NOT NULL REFERENCES comision(id_comision),
+    id_asambleista          INT         NOT NULL REFERENCES asambleista(asambleista_id),
+    id_rol_comision         INT         NOT NULL REFERENCES catalogo_maestro(id_item),
+    fecha_ingreso           DATE        NOT NULL,
+    fecha_fin               DATE,
+    estado                  VARCHAR(20) NOT NULL DEFAULT 'ACTIVO',
+    CONSTRAINT chk_fechas_integrante
+        CHECK (fecha_fin IS NULL OR fecha_fin > fecha_ingreso),
+    CONSTRAINT uq_integrante_comision
+        UNIQUE (id_comision, id_asambleista, fecha_ingreso)
+);
+
+-- Historial de cambios de rol en las comisiones
+CREATE TABLE bitacora_integrante_comision (
+    id_bitacora      SERIAL    PRIMARY KEY,
+    id_integrante    INT       NOT NULL REFERENCES integrante_comision(id_integrante_comision),
+    id_rol_anterior  INT       REFERENCES catalogo_maestro(id_item),
+    id_rol_nuevo     INT       REFERENCES catalogo_maestro(id_item),
+    fecha_cambio     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    motivo           TEXT
+);
+
+-- Indica a cada comisión que propuestas debe analizar
+CREATE TABLE propositos_comision (
+    id_proposito_comision  SERIAL    PRIMARY KEY,
+    id_comision            INT       NOT NULL REFERENCES comision(id_comision),
+    id_propuesta           INT       NOT NULL REFERENCES propuesta(id_propuesta),
+    texto                  TEXT,
+    fecha_registro         DATE      NOT NULL DEFAULT CURRENT_DATE,
+    CONSTRAINT uq_proposito UNIQUE (id_comision, id_propuesta)
+);
+
+-- Registro de reuniones de las comisiones
+CREATE TABLE sesion_comision (
+    id_sesion_comision  SERIAL       PRIMARY KEY,
+    id_comision         INT          NOT NULL REFERENCES comision(id_comision),
+    fecha_hora          TIMESTAMP    NOT NULL,
+    lugar               VARCHAR(200)
+);
+
+-- Clave para las certificaciones y participación activa
+CREATE TABLE asistencia_sesion_comision (
+    id_asistencia_comision  SERIAL PRIMARY KEY,
+    id_sesion_comision      INT    NOT NULL REFERENCES sesion_comision(id_sesion_comision),
+    id_asambleista          INT    NOT NULL REFERENCES asambleista(asambleista_id),
+    id_comision             INT    NOT NULL REFERENCES comision(id_comision),
+    id_estado_asistencia    INT    NOT NULL REFERENCES catalogo_maestro(id_item),
+    CONSTRAINT uq_asistencia_comision
+        UNIQUE (id_sesion_comision, id_asambleista)
+);
+
+CREATE TABLE punto_agenda_sesion_comision (
+    id_punto_agenda_sc  SERIAL       PRIMARY KEY,
+    id_sesion_comision  INT          NOT NULL REFERENCES sesion_comision(id_sesion_comision),
+    id_proposito        INT          NOT NULL REFERENCES propositos_comision(id_proposito_comision),
+    id_tipo_tramite     INT          NOT NULL REFERENCES catalogo_maestro(id_item),
+    orden               INT          NOT NULL,
+    titulo              VARCHAR(300),
+    descripcion         TEXT
+);
+
+-- =============================================================================
+
+-- Issue 7: Gestión de comisiones y proponentes
+
+-- Argumento legal del informe
+CREATE TABLE justificacion_legal (
+    id_argumento    SERIAL  PRIMARY KEY,
+    es_considerando BOOLEAN NOT NULL DEFAULT TRUE,
+    contenido       TEXT    NOT NULL
+);
+
+-- Informe que la comisión entrega
+CREATE TABLE informe_directorio (
+    id_informe          SERIAL PRIMARY KEY,
+    id_comision         INT    NOT NULL REFERENCES comision(id_comision),
+    id_propuesta        INT    NOT NULL REFERENCES propuesta(id_propuesta),
+    id_sesion           INT    NOT NULL REFERENCES sesiones(id_sesion),
+    recomendacion       TEXT   NOT NULL,
+    fecha_presentacion  DATE   NOT NULL
+);
+
+-- Relación N:M entre los informes y sus justificaciones 
+CREATE TABLE justificaciones_por_informe (
+    id_informe      INT NOT NULL REFERENCES informe_directorio(id_informe),
+    id_argumento    INT NOT NULL REFERENCES justificacion_legal(id_argumento),
+    orden_aparicion INT NOT NULL,
+    PRIMARY KEY (id_informe, id_argumento)
+);
+
+-- =============================================================================
+-- Módulo 3: Sesiones y Trámite Legislativo
+-- Funciones de sesiones
+-- Issue 12: Motor de votaciones
+-- =============================================================================
+
