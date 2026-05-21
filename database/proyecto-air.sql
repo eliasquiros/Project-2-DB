@@ -707,8 +707,10 @@ BEGIN
 
     -- Obtiene el id del estado Presente desde el catálogo
     SELECT id_estado_asistencia INTO id_estado_presente
-    FROM catalogo_asistencia_sesion_comision
-    WHERE nombre ILIKE 'Presente'
+    -- Correción: leer desde catalogo_maestro, no desde la tabla que no existe
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA"
+        AND nombre = 'Presente'
     LIMIT 1;
 
     -- Cuenta los asambleístas presentes en la sesión
