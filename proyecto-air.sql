@@ -1008,6 +1008,11 @@ $$ LANGUAGE plpgsql;
 
 -- Issue 10: Parte II e Issue 16: Vistas SQL
 
+-- Agregar columna "estado" a la tabla certificacion_emitida
+-- Corregir orden para que CockroachDB pueda crear las vistas correctamente
+ALTER TABLE certificacion_emitida
+    ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
+
 -- Filtra solo los elementos donde no hay fecha de vigencia, no se puede ver un artículo derogado
 CREATE OR REPLACE VIEW v_reglamento_vigente AS
 SELECT
@@ -1062,10 +1067,6 @@ SELECT
 FROM certificacion_emitida
 GROUP BY anno, mes
 ORDER BY anno DESC, mes DESC;
-
--- Agregar columna "estado" a la tabla certificacion_emitida
-ALTER TABLE certificacion_emitida
-    ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
 
 -- Agregar vistas para reportes y dashboard
 CREATE OR REPLACE VIEW v_asambleistas_mas_consultados AS
