@@ -26,7 +26,7 @@ const ejecutarConAuditoria = async (id_usuario, callback) => {
         await client.query('BEGIN')
 
         // Pasa el id del usuario a la sesión de BD solo durante esta transacción
-        await client.query(`SET LOCAL "app.usuario_id" = '${id_usuario}'`)
+        await client.query(`SET LOCAL "app.usuario_id" = $1`, [id_usuario.toString()])
 
         // Ejecuta la operación real (INSERT, UPDATE, DELETE)
         const resultado = await callback(client)
