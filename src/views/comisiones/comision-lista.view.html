@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comisiones — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1 { color: #1a1a2e; margin-bottom: 1.5rem; }
+
+        .controles {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="text"] {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 300px;
+        }
+
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f9f9f9; }
+
+        .badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .badge-activo { background: #d4edda; color: #155724; }
+        .badge-inactivo { background: #f8d7da; color: #721c24; }
+
+        a { color: #1a1a2e; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+
+        .mensaje-estado {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .error { color: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <h1>🏛️ Gestión de Comisiones</h1>
+
+    <div class="controles">
+        <input type="text" id="buscador" placeholder="Buscar por nombre o tipo..." />
+        <button onclick="window.location.href='comision-registro.view.html'">
+            + Nueva Comisión
+        </button>
+    </div>
+
+    <table id="tabla-comisiones">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Fecha de creación</th>
+                <th>Integrantes activos</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpo-tabla">
+            <tr>
+                <td colspan="6" class="mensaje-estado">Cargando comisiones...</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        const token = localStorage.getItem('token')
+
+        // ── CARGAR LISTA ──────────────────────────────────────────────────────
+        async function cargarComisiones() {
+            try {
+                const res = await fetch('/api/comisiones', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Error al obtener comisiones')
+
+                const comisiones = await res.json()
+                const cuerpo = document.getElementById('cuerpo-tabla')
+
+                if (comisiones.length === 0) {
+                    cuerpo.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="mensaje-estado">
+                                No hay comisiones registradas.
+                            </td>
+                        </tr>`
+                    return
+                }
+
+                cuerpo.innerHTML = ''
+                comisiones.forEach(c => {
+                    const fecha = new Date(c.fecha_creacion).toLocaleDateString('es-CR')
+                    const estadoBadge = c.activo
+                        ? '<span class="badge badge-activo">ACTIVA</span>'
+                        : '<span class="badge badge-inactivo">INACTIVA</span>'
+
+                    cuerpo.innerHTML += `
+                        <tr>
+                            <td>${c.nombre_comision}</td>
+                            <td>${c.tipo_comision}</td>
+                            <td>${fecha}</td>
+                            <td>${c.total_integrantes}</td>
+                            <td>${estadoBadge}</td>
+                            <td>
+                                <a href="comision-detalle.view.html?id=${c.id_comision}">
+                                    Ver detalle
+                                </a>
+                            </td>
+                        </tr>`
+                })
+
+            } catch (error) {
+                document.getElementById('cuerpo-tabla').innerHTML = `
+                    <tr>
+                        <td colspan="6" class="mensaje-estado error">
+                            Error al cargar: ${error.message}
+                        </td>
+                    </tr>`
+            }
+        }
+
+        // ── BUSCADOR ──────────────────────────────────────────────────────────
+        document.getElementById('buscador').addEventListener('input', function () {
+            const texto = this.value.toLowerCase()
+            const filas = document.querySelectorAll('#cuerpo-tabla tr')
+            filas.forEach(fila => {
+                fila.style.display = fila.textContent.toLowerCase().includes(texto) ? '' : 'none'
+            })
+        })
+
+        cargarComisiones()
+    </script>
+
+</body>
+</html>
