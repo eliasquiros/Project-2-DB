@@ -680,49 +680,45 @@ CREATE TRIGGER tg_auditoria_resolucion
     FOR EACH ROW
     EXECUTE FUNCTION fn_auditoria_total();
 
-CREATE OR REPLACE FUNCTION fn_validar_quorum()
+CREATE FUNCTION fn_validar_quorum()
 RETURNS TRIGGER AS $$
 DECLARE
     quorum_requerido_sesion  INT;
     presentes_sesion         INT;
     id_sesion_resolucion     INT;
     id_estado_presente       INT;
+    v_id_punto               INT;
 BEGIN
-    -- Obtiene el id_sesion a través del punto_agenda
-    -- ya que resolucion referencia id_punto_agenda
+    v_id_punto := (NEW).id_punto_agenda;
+
     SELECT pa.id_sesion INTO id_sesion_resolucion
     FROM punto_agenda pa
-    WHERE pa.id_punto_agenda = NEW.id_punto_agenda;
+    WHERE pa.id_punto_agenda = v_id_punto;
 
     IF id_sesion_resolucion IS NULL THEN
         RAISE EXCEPTION
             'QUORUM_ERROR: No se encontró la sesión asociada al punto de agenda %.',
-            NEW.id_punto_agenda;
+            v_id_punto;
     END IF;
 
-    -- Obtiene el quórum mínimo requerido definido en la sesión
     SELECT quorum_requerido INTO quorum_requerido_sesion
     FROM sesiones
     WHERE id_sesion = id_sesion_resolucion;
 
-    -- Obtiene el id del estado Presente desde el catálogo
     SELECT id_item INTO id_estado_presente
-    -- Correción: leer desde catalogo_maestro, no desde la tabla que no existe
     FROM catalogo_maestro
     WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
-        AND nombre = 'Presente'
+      AND nombre = 'Presente'
     LIMIT 1;
 
-    -- Cuenta los asambleístas presentes en la sesión
     SELECT COUNT(*) INTO presentes_sesion
     FROM asistencia_sesion_plenaria
-    WHERE id_sesion          = id_sesion_resolucion
+    WHERE id_sesion            = id_sesion_resolucion
       AND id_estado_asistencia = id_estado_presente;
 
-    -- Bloquea la inserción si no se alcanza el quórum mínimo
     IF presentes_sesion < quorum_requerido_sesion THEN
         RAISE EXCEPTION
-            'QUORUM_INSUFICIENTE: La sesión % requiere % miembros presentes para sesionar legalmente. Presentes registrados: %.',
+            'QUORUM_INSUFICIENTE: La sesión % requiere % miembros presentes. Presentes: %.',
             id_sesion_resolucion,
             quorum_requerido_sesion,
             presentes_sesion;

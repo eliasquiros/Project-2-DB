@@ -4,9 +4,9 @@
 // Issue 14: Historial de Nombramientos
 // =============================================================================
 
-const {pool} = require('../config/db')
+const { pool } = require('../config/db')
 
-// Obtener todos los nombramientos históricos de un asambleísta 
+// Obtener todos los nombramientos históricos de un asambleísta
 const obtenerPorAsambleista = async (id_asambleista) => {
     const query = `
         SELECT
@@ -42,16 +42,18 @@ const validarTraslape = async (id_asambleista, fecha_inicio, fecha_fin) => {
     return resultado.rows.length > 0
 }
 
-// Insertar nombramiento nuevo
-const crear = async (id_asambleista, sector_id, id_puesto, fecha_inicio, fecha_fin, id_usuario_registro) => {
+// Crear un nombramiento nuevo
+// Recibe client cuando se llama desde ejecutarConAuditoria, pool si no
+const crear = async (id_asambleista, sector_id, id_puesto, fecha_inicio, fecha_fin, id_usuario_registro, client) => {
+    const db = client || pool
     const query = `
-        INSERT INTO nombramiento 
+        INSERT INTO nombramiento
             (asambleista_id, sector_id, id_puesto, fecha_inicio, fecha_fin, estado, id_usuario_registro)
-        VALUES 
+        VALUES
             ($1, $2, $3, $4, $5, 'ACTIVO', $6)
         RETURNING *
     `
-    const resultado = await pool.query(query, [
+    const resultado = await db.query(query, [
         id_asambleista,
         sector_id,
         id_puesto || null,
@@ -62,11 +64,8 @@ const crear = async (id_asambleista, sector_id, id_puesto, fecha_inicio, fecha_f
     return resultado.rows[0]
 }
 
-
-
 module.exports = {
     obtenerPorAsambleista,
     validarTraslape,
-    crear,
-    
+    crear
 }
