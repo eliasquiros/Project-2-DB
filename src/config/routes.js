@@ -51,6 +51,7 @@ router.get('/sesiones/:id/quorum', verificarToken, LegislativoController.validar
 // ── VOTACIONES ────────────────────────────────────
 router.post('/votaciones', verificarToken, LegislativoController.registrarVoto)
 router.get('/votaciones/:id/resultado', verificarToken, LegislativoController.calcularResultado)
+router.get('/votaciones/:id/votos', verificarToken, LegislativoController.obtenerVotosResolucion)
 
 // ── CERTIFICACIONES ───────────────────────────────
 router.post('/certificaciones', verificarToken, ReporteController.generarCertificacion)
