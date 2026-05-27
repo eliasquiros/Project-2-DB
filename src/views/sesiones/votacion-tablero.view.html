@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero de Votación - Sistema AIR</title>
+    <link rel="stylesheet" href="../shared/global.css">
+    <style>
+        .panel-sesion {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+        }
+ 
+        .dato-sesion {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+ 
+        .dato-sesion span:first-child {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-texto-suave);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+ 
+        .dato-sesion span:last-child {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-texto);
+        }
+ 
+        .quorum-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+ 
+        .quorum-ok    { background: #d5f5e3; color: #27ae60; }
+        .quorum-error { background: #fadbd8; color: #c0392b; }
+ 
+        .tipo-votacion-selector {
+            display: flex;
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+        }
+ 
+        .tipo-btn {
+            flex: 1;
+            padding: var(--espacio-md);
+            border: 2px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            background: var(--color-blanco);
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+ 
+        .tipo-btn.activo {
+            border-color: var(--color-primario);
+            background: #eaf2fb;
+            color: var(--color-primario);
+        }
+ 
+        .tipo-btn span {
+            display: block;
+            font-size: 1.5rem;
+            margin-bottom: 0.3rem;
+        }
+ 
+        .tipo-btn strong {
+            display: block;
+            font-size: 0.9rem;
+        }
+ 
+        .tipo-btn p {
+            font-size: 0.78rem;
+            color: var(--color-texto-suave);
+            margin-top: 0.2rem;
+        }
+ 
+        /* Tabla de votos nominales */
+        .fila-voto td { vertical-align: middle; }
+ 
+        .decision-selector {
+            display: flex;
+            gap: 0.4rem;
+        }
+ 
+        .btn-voto {
+            padding: 0.35rem 0.8rem;
+            border: 2px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            background: var(--color-blanco);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.15s;
+        }
+ 
+        .btn-voto.favor     { border-color: #27ae60; color: #27ae60; }
+        .btn-voto.contra    { border-color: #c0392b; color: #c0392b; }
+        .btn-voto.abstencion { border-color: #f39c12; color: #f39c12; }
+ 
+        .btn-voto.favor.seleccionado     { background: #27ae60; color: white; }
+        .btn-voto.contra.seleccionado    { background: #c0392b; color: white; }
+        .btn-voto.abstencion.seleccionado { background: #f39c12; color: white; }
+ 
+        /* Panel de conteo en tiempo real */
+        .conteo-votos {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+        }
+ 
+        .conteo-item {
+            text-align: center;
+            padding: var(--espacio-md);
+            border-radius: var(--radio-borde);
+        }
+ 
+        .conteo-favor     { background: #d5f5e3; }
+        .conteo-contra    { background: #fadbd8; }
+        .conteo-abstencion { background: #fef9e7; }
+ 
+        .conteo-item .numero {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+ 
+        .conteo-favor     .numero { color: #27ae60; }
+        .conteo-contra    .numero { color: #c0392b; }
+        .conteo-abstencion .numero { color: #f39c12; }
+ 
+        .conteo-item .etiqueta {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 0.3rem;
+            color: var(--color-texto-suave);
+        }
+ 
+        /* Resultado final */
+        .resultado-final {
+            text-align: center;
+            padding: var(--espacio-xl);
+            border-radius: var(--radio-borde);
+            margin-top: var(--espacio-lg);
+            display: none;
+        }
+ 
+        .resultado-aprobado  { background: #d5f5e3; border: 2px solid #27ae60; }
+        .resultado-rechazado { background: #fadbd8; border: 2px solid #c0392b; }
+ 
+        .resultado-final .icono  { font-size: 3rem; }
+        .resultado-final .texto  { font-size: 1.5rem; font-weight: 700; margin-top: 0.5rem; }
+        .resultado-final .detalle { font-size: 0.9rem; color: var(--color-texto-suave); margin-top: 0.3rem; }
+ 
+        /* Voto secreto — contadores manuales */
+        .contador-secreto {
+            display: flex;
+            align-items: center;
+            gap: var(--espacio-md);
+        }
+ 
+        .contador-secreto button {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid var(--color-borde);
+            background: var(--color-blanco);
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+ 
+        .contador-secreto button:hover { background: var(--color-fondo); }
+ 
+        .contador-secreto .valor {
+            font-size: 1.5rem;
+            font-weight: 700;
+            min-width: 2rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+ 
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="navbar-brand">Sistema de Gestión Legislativa <span>AIR</span></div>
+    <div class="navbar-usuario" id="navbar-usuario">
+        <span>👤</span>
+        <span id="nombre-usuario">Cargando...</span>
+        <span>|</span>
+        <a href="../auth/login.view.html" style="color:white; font-size:0.85rem;">Cerrar sesión</a>
+    </div>
+</nav>
+ 
+<div class="contenedor">
+ 
+    <!-- ALERTA -->
+    <div class="alerta alerta-error"  id="alerta-error"></div>
+    <div class="alerta alerta-exito"  id="alerta-exito"></div>
+    <div class="alerta alerta-info"   id="alerta-info"></div>
+ 
+    <!-- PASO 1: SELECCIONAR SESIÓN Y RESOLUCIÓN -->
+    <div class="tarjeta" id="paso-seleccion">
+        <div class="tarjeta-titulo">🗳️ Tablero de Votación</div>
+ 
+        <div class="form-fila">
+            <div class="form-grupo">
+                <label for="select-sesion">Sesión</label>
+                <select id="select-sesion">
+                    <option value="">-- Seleccione una sesión --</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label for="select-resolucion">Resolución / Punto de Agenda</label>
+                <select id="select-resolucion" disabled>
+                    <option value="">-- Primero seleccione una sesión --</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label for="select-mayoria">Tipo de Mayoría</label>
+                <select id="select-mayoria">
+                    <option value="Simple">Simple</option>
+                    <option value="Calificada">Calificada (66%)</option>
+                </select>
+            </div>
+        </div>
+ 
+        <div id="estado-quorum" style="margin-bottom: var(--espacio-md); display:none;">
+            <span id="quorum-badge" class="quorum-badge"></span>
+        </div>
+ 
+        <div class="form-acciones">
+            <button class="btn btn-primario" onclick="iniciarVotacion()">
+                ▶ Iniciar Votación
+            </button>
+        </div>
+    </div>
+ 
+    <!-- PASO 2: TABLERO DE VOTACIÓN (oculto hasta iniciar) -->
+    <div id="paso-votacion" style="display:none;">
+ 
+        <!-- Info de la sesión activa -->
+        <div class="tarjeta">
+            <div class="panel-sesion">
+                <div class="dato-sesion">
+                    <span>Sesión</span>
+                    <span id="info-sesion">—</span>
+                </div>
+                <div class="dato-sesion">
+                    <span>Resolución</span>
+                    <span id="info-resolucion">—</span>
+                </div>
+                <div class="dato-sesion">
+                    <span>Tipo de Mayoría</span>
+                    <span id="info-mayoria">—</span>
+                </div>
+                <div class="dato-sesion">
+                    <span>Estado Quórum</span>
+                    <span id="info-quorum">—</span>
+                </div>
+            </div>
+        </div>
+ 
+        <!-- Selector tipo de votación -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">Tipo de Votación</div>
+            <div class="tipo-votacion-selector">
+                <div class="tipo-btn activo" id="btn-tipo-nominal" onclick="seleccionarTipo('nominal')">
+                    <span>📋</span>
+                    <strong>Nominal</strong>
+                    <p>Se registra el voto de cada asambleísta individualmente</p>
+                </div>
+                <div class="tipo-btn" id="btn-tipo-secreto" onclick="seleccionarTipo('secreto')">
+                    <span>🔒</span>
+                    <strong>Secreto</strong>
+                    <p>Solo se registra el conteo final, sin identificar a cada asambleísta</p>
+                </div>
+            </div>
+        </div>
+ 
+        <!-- Panel nominal -->
+        <div class="tarjeta" id="panel-nominal">
+            <div class="tarjeta-titulo">Registro de Votos Nominales</div>
+ 
+            <div class="tabla-contenedor">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Cédula</th>
+                            <th>Nombre</th>
+                            <th>Sector</th>
+                            <th>Decisión</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-asambleistas">
+                        <tr><td colspan="4" style="text-align:center; color:var(--color-texto-suave);">Cargando asambleístas...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+ 
+            <div class="form-acciones">
+                <button class="btn btn-secundario" onclick="limpiarVotos()">↺ Limpiar</button>
+                <button class="btn btn-primario" onclick="registrarVotosNominales()">✓ Registrar Votos</button>
+            </div>
+        </div>
+ 
+        <!-- Panel secreto -->
+        <div class="tarjeta" id="panel-secreto" style="display:none;">
+            <div class="tarjeta-titulo">Registro de Voto Secreto</div>
+            <p style="color:var(--color-texto-suave); margin-bottom:var(--espacio-lg); font-size:0.9rem;">
+                Ingrese el conteo final de votos. No se registra la identidad de cada asambleísta.
+            </p>
+ 
+            <div class="form-fila">
+                <div class="form-grupo">
+                    <label>✅ Votos a Favor</label>
+                    <div class="contador-secreto">
+                        <button onclick="cambiarContador('favor', -1)">−</button>
+                        <span class="valor" id="contador-favor">0</span>
+                        <button onclick="cambiarContador('favor', 1)">+</button>
+                    </div>
+                </div>
+                <div class="form-grupo">
+                    <label>❌ Votos en Contra</label>
+                    <div class="contador-secreto">
+                        <button onclick="cambiarContador('contra', -1)">−</button>
+                        <span class="valor" id="contador-contra">0</span>
+                        <button onclick="cambiarContador('contra', 1)">+</button>
+                    </div>
+                </div>
+                <div class="form-grupo">
+                    <label>⚪ Abstenciones</label>
+                    <div class="contador-secreto">
+                        <button onclick="cambiarContador('abstencion', -1)">−</button>
+                        <span class="valor" id="contador-abstencion">0</span>
+                        <button onclick="cambiarContador('abstencion', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+ 
+            <div class="form-acciones">
+                <button class="btn btn-primario" onclick="registrarVotosSecretos()">✓ Registrar Votos Secretos</button>
+            </div>
+        </div>
+ 
+        <!-- Conteo en tiempo real -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">Conteo de Votos</div>
+            <div class="conteo-votos">
+                <div class="conteo-item conteo-favor">
+                    <div class="numero" id="conteo-favor">0</div>
+                    <div class="etiqueta">✅ A Favor</div>
+                </div>
+                <div class="conteo-item conteo-contra">
+                    <div class="numero" id="conteo-contra">0</div>
+                    <div class="etiqueta">❌ En Contra</div>
+                </div>
+                <div class="conteo-item conteo-abstencion">
+                    <div class="numero" id="conteo-abstencion">0</div>
+                    <div class="etiqueta">⚪ Abstenciones</div>
+                </div>
+            </div>
+ 
+            <div class="form-acciones">
+                <button class="btn btn-primario" onclick="calcularResultado()">⚖️ Calcular Resultado Final</button>
+            </div>
+ 
+            <!-- Resultado final -->
+            <div class="resultado-final" id="resultado-final">
+                <div class="icono" id="resultado-icono"></div>
+                <div class="texto" id="resultado-texto"></div>
+                <div class="detalle" id="resultado-detalle"></div>
+            </div>
+        </div>
+ 
+    </div>
+</div>
+ 
+<script>
+    const TOKEN = localStorage.getItem('token')
+    const API   = '/api'
+ 
+    let idSesionActiva     = null
+    let idResolucionActiva = null
+    let tipoMayoriaActiva  = 'Simple'
+    let tipoVotacion       = 'nominal'
+    let votosNominales     = {}   // { id_asambleista: 'FAVOR' | 'CONTRA' | 'ABSTENCION' }
+    let contadoresSecretos = { favor: 0, contra: 0, abstencion: 0 }
+ 
+    // ── INIT ──────────────────────────────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!TOKEN) { window.location.href = '../auth/login.view.html'; return }
+ 
+        const payload = JSON.parse(atob(TOKEN.split('.')[1]))
+        document.getElementById('nombre-usuario').textContent = payload.username + ' (' + payload.rol + ')'
+ 
+        cargarSesiones()
+    })
+ 
+    // ── CARGAR SESIONES ───────────────────────────────────────────────────────
+    async function cargarSesiones() {
+        try {
+            const res = await fetch(`${API}/sesiones`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const select = document.getElementById('select-sesion')
+ 
+            if (Array.isArray(data) && data.length > 0) {
+                data.forEach(s => {
+                    const opt = document.createElement('option')
+                    opt.value = s.id_sesion
+                    opt.textContent = `${s.numero_sesion} — ${s.fecha}`
+                    select.appendChild(opt)
+                })
+            } else {
+                mostrarAlerta('info', 'No hay sesiones registradas en el sistema.')
+            }
+        } catch (e) {
+            mostrarAlerta('error', 'Error al cargar las sesiones.')
+        }
+    }
+ 
+    // ── SELECCIÓN DE SESIÓN → verificar quórum ────────────────────────────────
+    document.getElementById('select-sesion').addEventListener('change', async function () {
+        const id = this.value
+        if (!id) return
+ 
+        try {
+            const res = await fetch(`${API}/sesiones/${id}/quorum`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+ 
+            const badge   = document.getElementById('quorum-badge')
+            const estado  = document.getElementById('estado-quorum')
+            estado.style.display = 'block'
+ 
+            if (data.quorum_legal) {
+                badge.textContent  = '✅ ' + data.mensaje
+                badge.className    = 'quorum-badge quorum-ok'
+            } else {
+                badge.textContent  = '❌ ' + data.mensaje
+                badge.className    = 'quorum-badge quorum-error'
+            }
+        } catch (e) {
+            mostrarAlerta('error', 'Error al verificar el quórum.')
+        }
+    })
+ 
+    // ── INICIAR VOTACIÓN ──────────────────────────────────────────────────────
+    async function iniciarVotacion() {
+        idSesionActiva     = document.getElementById('select-sesion').value
+        idResolucionActiva = document.getElementById('select-resolucion').value
+        tipoMayoriaActiva  = document.getElementById('select-mayoria').value
+ 
+        if (!idSesionActiva) {
+            mostrarAlerta('error', 'Debe seleccionar una sesión.')
+            return
+        }
+ 
+        if (!idResolucionActiva) {
+            mostrarAlerta('error', 'Debe seleccionar una resolución.')
+            return
+        }
+ 
+        // Actualizar info del panel
+        const sesionText    = document.getElementById('select-sesion').selectedOptions[0].text
+        const resolucionText = document.getElementById('select-resolucion').selectedOptions[0].text
+        document.getElementById('info-sesion').textContent    = sesionText
+        document.getElementById('info-resolucion').textContent = resolucionText
+        document.getElementById('info-mayoria').textContent   = tipoMayoriaActiva
+        document.getElementById('info-quorum').textContent    = document.getElementById('quorum-badge').textContent || '—'
+ 
+        document.getElementById('paso-seleccion').style.display = 'none'
+        document.getElementById('paso-votacion').style.display  = 'block'
+ 
+        await cargarAsambleistas()
+    }
+ 
+    // ── CARGAR ASAMBLEÍSTAS ACTIVOS ───────────────────────────────────────────
+    async function cargarAsambleistas() {
+        try {
+            const res = await fetch(`${API}/asambleistas`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const tbody = document.getElementById('tabla-asambleistas')
+            tbody.innerHTML = ''
+ 
+            const activos = Array.isArray(data) ? data.filter(a => a.estado === 'VIGENTE') : []
+ 
+            if (activos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No hay asambleístas activos.</td></tr>'
+                return
+            }
+ 
+            activos.forEach(a => {
+                votosNominales[a.asambleista_id] = null
+                const tr = document.createElement('tr')
+                tr.className = 'fila-voto'
+                tr.innerHTML = `
+                    <td>${a.cedula}</td>
+                    <td>${a.nombre}</td>
+                    <td>${a.sector || '—'}</td>
+                    <td>
+                        <div class="decision-selector">
+                            <button class="btn-voto favor"      onclick="seleccionarVoto(${a.asambleista_id}, 'FAVOR',      this)">✅ Favor</button>
+                            <button class="btn-voto contra"     onclick="seleccionarVoto(${a.asambleista_id}, 'CONTRA',     this)">❌ Contra</button>
+                            <button class="btn-voto abstencion" onclick="seleccionarVoto(${a.asambleista_id}, 'ABSTENCION', this)">⚪ Abs.</button>
+                        </div>
+                    </td>
+                `
+                tbody.appendChild(tr)
+            })
+        } catch (e) {
+            mostrarAlerta('error', 'Error al cargar los asambleístas.')
+        }
+    }
+ 
+    // ── SELECCIONAR VOTO NOMINAL ──────────────────────────────────────────────
+    function seleccionarVoto(id_asambleista, decision, btn) {
+        votosNominales[id_asambleista] = decision
+ 
+        // Deseleccionar los otros botones de la misma fila
+        const fila = btn.closest('.decision-selector')
+        fila.querySelectorAll('.btn-voto').forEach(b => b.classList.remove('seleccionado'))
+        btn.classList.add('seleccionado')
+    }
+ 
+    // ── REGISTRAR VOTOS NOMINALES ─────────────────────────────────────────────
+    async function registrarVotosNominales() {
+        const pendientes = Object.entries(votosNominales).filter(([, v]) => v === null)
+        if (pendientes.length > 0) {
+            mostrarAlerta('error', `Faltan ${pendientes.length} asambleísta(s) por votar.`)
+            return
+        }
+ 
+        let errores = 0
+        for (const [id_asambleista, decision] of Object.entries(votosNominales)) {
+            try {
+                const res = await fetch(`${API}/votaciones`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id_resolucion: parseInt(idResolucionActiva),
+                        id_asambleista: parseInt(id_asambleista),
+                        decision,
+                        es_secreto: false
+                    })
+                })
+                if (!res.ok) errores++
+            } catch (e) {
+                errores++
+            }
+        }
+ 
+        if (errores > 0) {
+            mostrarAlerta('error', `Se registraron errores en ${errores} voto(s). Verifique.`)
+        } else {
+            mostrarAlerta('exito', 'Todos los votos nominales fueron registrados correctamente.')
+            await actualizarConteo()
+        }
+    }
+ 
+    // ── SELECTOR TIPO VOTACIÓN ────────────────────────────────────────────────
+    function seleccionarTipo(tipo) {
+        tipoVotacion = tipo
+        document.getElementById('btn-tipo-nominal').classList.toggle('activo', tipo === 'nominal')
+        document.getElementById('btn-tipo-secreto').classList.toggle('activo', tipo === 'secreto')
+        document.getElementById('panel-nominal').style.display  = tipo === 'nominal' ? 'block' : 'none'
+        document.getElementById('panel-secreto').style.display  = tipo === 'secreto' ? 'block' : 'none'
+    }
+ 
+    // ── CONTADORES VOTO SECRETO ───────────────────────────────────────────────
+    function cambiarContador(tipo, delta) {
+        contadoresSecretos[tipo] = Math.max(0, contadoresSecretos[tipo] + delta)
+        document.getElementById(`contador-${tipo}`).textContent = contadoresSecretos[tipo]
+    }
+ 
+    // ── REGISTRAR VOTOS SECRETOS ──────────────────────────────────────────────
+    async function registrarVotosSecretos() {
+        const tipos = [
+            { key: 'favor',     decision: 'FAVOR' },
+            { key: 'contra',    decision: 'CONTRA' },
+            { key: 'abstencion', decision: 'ABSTENCION' }
+        ]
+ 
+        let errores = 0
+        for (const { key, decision } of tipos) {
+            const cantidad = contadoresSecretos[key]
+            for (let i = 0; i < cantidad; i++) {
+                try {
+                    const res = await fetch(`${API}/votaciones`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${TOKEN}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            id_resolucion: parseInt(idResolucionActiva),
+                            decision,
+                            es_secreto: true
+                        })
+                    })
+                    if (!res.ok) errores++
+                } catch (e) {
+                    errores++
+                }
+            }
+        }
+ 
+        if (errores > 0) {
+            mostrarAlerta('error', `Errores al registrar ${errores} voto(s) secretos.`)
+        } else {
+            mostrarAlerta('exito', 'Votos secretos registrados correctamente.')
+            await actualizarConteo()
+        }
+    }
+ 
+    // ── ACTUALIZAR CONTEO VISUAL ──────────────────────────────────────────────
+    async function actualizarConteo() {
+        try {
+            const res = await fetch(`${API}/votaciones/${idResolucionActiva}/votos`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const votos = data.votos || []
+ 
+            const favor      = votos.filter(v => v.decision === 'FAVOR').length
+            const contra     = votos.filter(v => v.decision === 'CONTRA').length
+            const abstencion = votos.filter(v => v.decision === 'ABSTENCION').length
+ 
+            document.getElementById('conteo-favor').textContent      = favor
+            document.getElementById('conteo-contra').textContent     = contra
+            document.getElementById('conteo-abstencion').textContent = abstencion
+        } catch (e) {
+            mostrarAlerta('error', 'Error al actualizar el conteo.')
+        }
+    }
+ 
+    // ── CALCULAR RESULTADO FINAL ──────────────────────────────────────────────
+    async function calcularResultado() {
+        try {
+            const res = await fetch(
+                `${API}/votaciones/${idResolucionActiva}/resultado?tipo_mayoria=${tipoMayoriaActiva}`,
+                { headers: { 'Authorization': `Bearer ${TOKEN}` } }
+            )
+            const data = await res.json()
+ 
+            const div = document.getElementById('resultado-final')
+            div.style.display = 'block'
+            div.className = 'resultado-final ' +
+                (data.resultado === 'APROBADO' ? 'resultado-aprobado' : 'resultado-rechazado')
+ 
+            document.getElementById('resultado-icono').textContent =
+                data.resultado === 'APROBADO' ? '✅' : '❌'
+            document.getElementById('resultado-texto').textContent = data.resultado
+            document.getElementById('resultado-detalle').textContent =
+                `${data.votos_favor} a favor · ${data.votos_contra} en contra · ${data.abstenciones} abstenciones · Mayoría ${data.tipo_mayoria}`
+ 
+        } catch (e) {
+            mostrarAlerta('error', 'Error al calcular el resultado.')
+        }
+    }
+ 
+    // ── LIMPIAR VOTOS ─────────────────────────────────────────────────────────
+    function limpiarVotos() {
+        Object.keys(votosNominales).forEach(k => votosNominales[k] = null)
+        document.querySelectorAll('.btn-voto').forEach(b => b.classList.remove('seleccionado'))
+    }
+ 
+    // ── ALERTAS ───────────────────────────────────────────────────────────────
+    function mostrarAlerta(tipo, mensaje) {
+        ['error', 'exito', 'info'].forEach(t => {
+            const el = document.getElementById(`alerta-${t}`)
+            el.classList.remove('visible')
+            el.textContent = ''
+        })
+        const el = document.getElementById(`alerta-${tipo}`)
+        el.textContent = mensaje
+        el.classList.add('visible')
+        setTimeout(() => el.classList.remove('visible'), 5000)
+    }
+</script>
+</body>
+</html>
