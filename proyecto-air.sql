@@ -734,6 +734,36 @@ CREATE TRIGGER tg_validar_quorum
     EXECUTE FUNCTION fn_validar_quorum();
 
 -- =============================================================================
+-- Función consultable de quórum (Issue 11)
+-- A diferencia de fn_validar_quorum que es un trigger automático, esta función es llamada directamente por el controlador para mostrar el estado del quórum en la interfaz antes de votar.
+
+CREATE FUNCTION validar_quorum_legal(p_id_sesion INT)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_presentes     INT;
+    v_quorum_req    INT;
+    v_id_presente   INT;
+BEGIN
+    SELECT id_item INTO v_id_presente
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
+      AND nombre = 'Presente'
+    LIMIT 1;
+
+    SELECT COUNT(*) INTO v_presentes
+    FROM asistencia_sesion_plenaria
+    WHERE id_sesion            = p_id_sesion
+      AND id_estado_asistencia = v_id_presente;
+
+    SELECT quorum_requerido INTO v_quorum_req
+    FROM sesiones
+    WHERE id_sesion = p_id_sesion;
+
+    RETURN v_presentes >= v_quorum_req;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
 
 -- Sprint 3 - Semana 1
 -- Tablas necesarias
