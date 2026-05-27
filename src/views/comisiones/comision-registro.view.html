@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nueva Comisión — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1 { color: #1a1a2e; margin-bottom: 1.5rem; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 500px;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 0.4rem;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #1a1a2e;
+        }
+
+        .acciones {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        button {
+            padding: 0.6rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        button:hover { background: #2a2a4e; }
+
+        button.secundario {
+            background: white;
+            color: #1a1a2e;
+            border: 1px solid #1a1a2e;
+        }
+
+        button.secundario:hover { background: #f0f0f0; }
+
+        .error {
+            color: #c0392b;
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+            display: none;
+        }
+
+        .mensaje-exito {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏛️ Nueva Comisión</h1>
+
+    <div class="card">
+        <div class="mensaje-exito" id="mensaje-exito">
+            ✓ Comisión creada correctamente. Redirigiendo...
+        </div>
+
+        <div class="form-group">
+            <label>Tipo de comisión *</label>
+            <select id="select-tipo">
+                <option value="">-- Seleccione --</option>
+            </select>
+            <span class="error" id="error-tipo">Seleccione un tipo</span>
+        </div>
+
+        <div class="form-group">
+            <label>Nombre de la comisión *</label>
+            <input type="text" id="input-nombre"
+                placeholder="Ej: Comisión de Estatuto Orgánico" />
+            <span class="error" id="error-nombre">
+                El nombre debe tener al menos 5 caracteres
+            </span>
+        </div>
+
+        <div class="acciones">
+            <button class="secundario"
+                onclick="window.location.href='comision-lista.view.html'">
+                Cancelar
+            </button>
+            <button onclick="guardar()">Guardar comisión</button>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token')
+
+        // ── CARGAR TIPOS DE COMISIÓN ──────────────────────────────────────────
+        async function cargarTipos() {
+            try {
+                // Usamos la ruta de catálogos que ya existe para sectores
+                // pero con el grupo TIPO_COMISION directo desde la BD
+                const res = await fetch('/api/catalogos/tipos-comision', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Error al cargar tipos')
+
+                const tipos = await res.json()
+                const select = document.getElementById('select-tipo')
+
+                tipos.forEach(t => {
+                    select.innerHTML +=
+                        `<option value="${t.id_item}">${t.nombre}</option>`
+                })
+
+            } catch (error) {
+                console.error('Error al cargar tipos:', error.message)
+            }
+        }
+
+        // ── GUARDAR COMISIÓN ──────────────────────────────────────────────────
+        async function guardar() {
+            const id_tipo_comision = document.getElementById('select-tipo').value
+            const nombre_comision = document.getElementById('input-nombre').value.trim()
+
+            // Limpiar errores anteriores
+            document.getElementById('error-tipo').style.display = 'none'
+            document.getElementById('error-nombre').style.display = 'none'
+
+            // Validaciones
+            let hayError = false
+
+            if (!id_tipo_comision) {
+                document.getElementById('error-tipo').style.display = 'block'
+                hayError = true
+            }
+
+            if (nombre_comision.length < 5) {
+                document.getElementById('error-nombre').style.display = 'block'
+                hayError = true
+            }
+
+            if (hayError) return
+
+            try {
+                const res = await fetch('/api/comisiones', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id_tipo_comision, nombre_comision })
+                })
+
+                const datos = await res.json()
+
+                if (!res.ok) {
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                // Mostrar mensaje de éxito y redirigir
+                document.getElementById('mensaje-exito').style.display = 'block'
+                setTimeout(() => {
+                    window.location.href = `comision-detalle.view.html?id=${datos.id_comision}`
+                }, 1500)
+
+            } catch (error) {
+                alert('Error al guardar: ' + error.message)
+            }
+        }
+
+        cargarTipos()
+    </script>
+
+</body>
+</html>
