@@ -147,17 +147,36 @@ const registrarSesion = async (req, res) => {
             })
         }
 
-        // Verificar que la comisión existe
         const comision = await Comision.obtenerPorId(id)
         if (!comision) {
             return res.status(404).json({ error: 'Comisión no encontrada' })
         }
 
+        // Ajuste para la vista de comision-detalle
+        // Obtener los IDs de estados de asistencia del catálogo
+        const { pool } = require('../config/db')
+        const catResult = await pool.query(`
+            SELECT id_item, nombre FROM catalogo_maestro
+            WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
+        `)
+        const estados = {}
+        catResult.rows.forEach(r => {
+            estados[r.nombre.toUpperCase()] = r.id_item
+        })
+
+        // Convertir presente: true/false al id_estado_asistencia correspondiente
+        const asistenciasConId = asistencias.map(a => ({
+            id_asambleista: a.id_asambleista,
+            id_estado_asistencia: a.presente
+                ? estados['PRESENTE']
+                : estados['AUSENTE']
+        }))
+
         const sesion = await Comision.registrarSesion(
             id,
             fecha_hora,
             lugar,
-            asistencias,
+            asistenciasConId,
             req.usuario.id
         )
 
