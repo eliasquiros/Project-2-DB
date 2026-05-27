@@ -35,6 +35,8 @@ router.post('/comisiones/:id/sesiones', verificarToken, ComisionController.regis
 router.get('/reglamentos',verificarToken, LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obtenerArbol)
 router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
+router.get('/catalogos/roles-comision', verificarToken, LegislativoController.obtenerRolesComision)
+router.get('/catalogos/tipos-comision', verificarToken, LegislativoController.obtenerTiposComision)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
