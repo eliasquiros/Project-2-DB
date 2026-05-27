@@ -112,6 +112,25 @@ const obtenerSectores = async (req, res) => {
     }
 };
 
+// Issue 7: Roles de comisión para el selector de la vista
+const obtenerRolesComision = async (req, res) => {
+    try {
+        const roles = await Catalogo.obtenerRolesComision()
+        res.json(roles)
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener roles de comisión' })
+    }
+}
+
+const obtenerTiposComision = async (req, res) => {
+    try {
+        const tipos = await Catalogo.obtenerTiposComision()
+        res.json(tipos)
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener tipos de comisión' })
+    }
+}
+
 module.exports = {
     obtenerReglamentos,
     obtenerArbol,
@@ -123,5 +142,6 @@ module.exports = {
     aplicarReforma,
     obtenerHistorialReformas,
     obtenerSectores,
+    obtenerRolesComision,
+    obtenerTiposComision
 }
-
