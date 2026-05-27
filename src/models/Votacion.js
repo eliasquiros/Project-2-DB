@@ -6,6 +6,14 @@
 
 const { pool } = require('../config/db')
 
+// Validar si una sesión tiene quórum legal
+// Llama a la función validar_quorum_legal(id_sesion) ya definida en la BD
+const validarQuorumSesion = async (id_sesion) => {
+    const query = `SELECT validar_quorum_legal($1) AS tiene_quorum`
+    const resultado = await pool.query(query, [id_sesion])
+    return resultado.rows[0].tiene_quorum
+}
+
 // Registrar un voto nominal (se guarda con id_asambleista)
 // Un asambleísta solo puede votar una vez por resolución (UNIQUE constraint en BD)
 const registrarVotoNominal = async (id_resolucion, id_asambleista, decision) => {
@@ -18,7 +26,7 @@ const registrarVotoNominal = async (id_resolucion, id_asambleista, decision) => 
     return resultado.rows[0]
 }
 
-// Registrar votos secretos (no se guarda id_asambleista, solo el conteo)
+// Registrar votos secretos (no se guarda id_asambleista, solo la decisión)
 // Se inserta una fila por cada voto: favor, contra o abstención
 const registrarVotoSecreto = async (id_resolucion, decision) => {
     const query = `
@@ -38,8 +46,8 @@ const obtenerVotosPorResolucion = async (id_resolucion) => {
             v.decision,
             v.es_secreto,
             v.fecha_registro,
-            a.nombre        AS nombre_asambleista,
-            a.cedula        AS cedula_asambleista
+            a.nombre    AS nombre_asambleista,
+            a.cedula    AS cedula_asambleista
         FROM voto v
         LEFT JOIN asambleista a ON a.asambleista_id = v.id_asambleista
         WHERE v.id_resolucion = $1
@@ -52,7 +60,6 @@ const obtenerVotosPorResolucion = async (id_resolucion) => {
 // Calcular el resultado de una votación usando la función de BD
 // Llama a calcular_resultado_votacion(votos_favor, votos_contra, tipo_mayoria)
 const calcularResultado = async (id_resolucion, tipo_mayoria) => {
-    // Primero cuenta los votos registrados para esta resolución
     const queryConteo = `
         SELECT
             COUNT(CASE WHEN decision = 'FAVOR'      THEN 1 END)::INT AS votos_favor,
@@ -65,7 +72,6 @@ const calcularResultado = async (id_resolucion, tipo_mayoria) => {
     const conteo = await pool.query(queryConteo, [id_resolucion])
     const { votos_favor, votos_contra, abstenciones, total_votos } = conteo.rows[0]
 
-    // Llama a la función de BD que aplica la lógica legal de mayorías
     const queryResultado = `
         SELECT calcular_resultado_votacion($1, $2, $3) AS resultado
     `
@@ -93,6 +99,7 @@ const yaVoto = async (id_resolucion, id_asambleista) => {
 }
 
 module.exports = {
+    validarQuorumSesion,
     registrarVotoNominal,
     registrarVotoSecreto,
     obtenerVotosPorResolucion,
