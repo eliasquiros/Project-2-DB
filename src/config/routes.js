@@ -57,4 +57,11 @@ router.get('/votaciones/:id/votos', verificarToken, LegislativoController.obtene
 router.post('/certificaciones', verificarToken, ReporteController.generarCertificacion)
 router.get('/certificaciones/:folio', verificarToken, ReporteController.obtenerPorFolio)
 
+// ── AUDITORÍA ─────────────────────────────────────
+router.get('/auditoria/logs', verificarToken, ReporteController.obtenerLogs)
+router.get('/auditoria/resumen', verificarToken, ReporteController.obtenerResumenAuditoria)
+router.get('/auditoria/certificaciones-por-mes', verificarToken, ReporteController.obtenerCertificacionesPorMes)
+router.get('/auditoria/asambleistas-consultados', verificarToken, ReporteController.obtenerAsambleistasConsultados)
+router.get('/auditoria/tablas', verificarToken, ReporteController.obtenerTablasAuditadas)
+
 module.exports = router
