@@ -85,23 +85,24 @@ const obtenerPorId = async (id) => {
 }
 
 // Crear una nueva sesión plenaria
-const crear = async (numero_sesion, fecha, quorum_requerido, id_tipo_sesion, id_tipo_modalidad, link_acta, id_usuario, client = null) => {
-    const query = `
-        INSERT INTO sesiones
-            (numero_sesion, fecha, quorum_requerido, id_tipo_sesion, id_tipo_modalidad, link_acta)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-    `
-    const ejecutor = client || pool
-    const resultado = await ejecutor.query(query, [
-        numero_sesion,
-        fecha,
-        quorum_requerido,
-        id_tipo_sesion,
-        id_tipo_modalidad,
-        link_acta || null
-    ])
-    return resultado.rows[0]
+const crear = async (numero_sesion, fecha, quorum_requerido, id_tipo_sesion, id_tipo_modalidad, link_acta, id_usuario) => {
+    return ejecutarConAuditoria(id_usuario, async (client) => {
+        const query = `
+            INSERT INTO sesiones
+                (numero_sesion, fecha, quorum_requerido, id_tipo_sesion, id_tipo_modalidad, link_acta)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+        `
+        const resultado = await client.query(query, [
+            numero_sesion,
+            fecha,
+            quorum_requerido,
+            id_tipo_sesion,
+            id_tipo_modalidad,
+            link_acta || null
+        ])
+        return resultado.rows[0]
+    })
 }
 
 // Registrar la asistencia de todos los asambleístas en una sesión.
