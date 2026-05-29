@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS propositos_comision          CASCADE;
 DROP TABLE IF EXISTS comision                     CASCADE;
 DROP TABLE IF EXISTS nombramiento                 CASCADE;
 DROP TABLE IF EXISTS asistencia_sesion_plenaria   CASCADE;
+DROP TABLE IF EXISTS voto   CASCADE;
 DROP TABLE IF EXISTS resolucion                   CASCADE;
 DROP TABLE IF EXISTS punto_agenda                 CASCADE;
 DROP TABLE IF EXISTS proponente_propuesta         CASCADE;
@@ -885,6 +886,17 @@ $$ LANGUAGE plpgsql;
 -- =============================================================================
 
 -- Issue 12: Motor de votaciones
+
+-- Tabla para registro de votos individuales (nominal) y conteo (secreto)
+CREATE TABLE voto (
+    id_voto          SERIAL      PRIMARY KEY,
+    id_resolucion    INT         NOT NULL REFERENCES resolucion(id_resolucion),
+    id_asambleista   INT         REFERENCES asambleista(asambleista_id),
+    decision         VARCHAR(10) NOT NULL CHECK (decision IN ('FAVOR', 'CONTRA', 'ABSTENCION')),
+    es_secreto       BOOLEAN     NOT NULL DEFAULT FALSE,
+    fecha_registro   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_voto_asambleista UNIQUE (id_resolucion, id_asambleista)
+);
 
 CREATE OR REPLACE FUNCTION calcular_resultado_votacion(
     p_votos_favor  INT,
