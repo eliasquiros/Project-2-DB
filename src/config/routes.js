@@ -45,8 +45,11 @@ router.get('/reformas/:id/historial', verificarToken, LegislativoController.obte
 
 // ── SESIONES ──────────────────────────────────────
 router.get('/sesiones', verificarToken, LegislativoController.obtenerSesiones)
+router.get('/sesiones/catalogos', verificarToken, LegislativoController.obtenerCatalogosSesion)
 router.post('/sesiones', verificarToken, LegislativoController.crearSesion)
+router.get('/sesiones/:id', verificarToken, LegislativoController.obtenerSesionPorId)
 router.get('/sesiones/:id/quorum', verificarToken, LegislativoController.validarQuorum)
+router.post('/sesiones/:id/asistencia', verificarToken, LegislativoController.registrarAsistencia)
 
 // ── VOTACIONES ────────────────────────────────────
 router.post('/votaciones', verificarToken, LegislativoController.registrarVoto)
