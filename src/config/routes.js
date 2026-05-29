@@ -7,6 +7,7 @@ const SecretariaController = require('../controllers/SecretariaController')
 const LegislativoController = require('../controllers/LegislativoController')
 const ReporteController = require('../controllers/ReporteController')
 const { verificarToken } = require('./middleware')
+const ComisionController = require('../controllers/ComisionController')
 
 // ── AUTH ──────────────────────────────────────────
 router.post('/auth/login', AuthController.login)
@@ -22,10 +23,20 @@ router.put('/asambleistas/:id', verificarToken, SecretariaController.actualizar)
 router.get('/asambleistas/:id/nombramientos', verificarToken, SecretariaController.obtenerNombramientos)
 router.post('/asambleistas/:id/nombramientos', verificarToken, SecretariaController.crearNombramiento)
 
+// ── COMISIONES ────────────────────────────────────
+router.get('/comisiones', verificarToken, ComisionController.obtenerTodas)
+router.get('/comisiones/:id', verificarToken, ComisionController.obtenerPorId)
+router.post('/comisiones', verificarToken, ComisionController.crear)
+router.post('/comisiones/:id/integrantes', verificarToken, ComisionController.asignarIntegrante)
+router.get('/comisiones/:id/sesiones', verificarToken, ComisionController.obtenerSesiones)
+router.post('/comisiones/:id/sesiones', verificarToken, ComisionController.registrarSesion)
+
 // ── NORMATIVA ─────────────────────────────────────
 router.get('/reglamentos',verificarToken, LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obtenerArbol)
 router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
+router.get('/catalogos/roles-comision', verificarToken, LegislativoController.obtenerRolesComision)
+router.get('/catalogos/tipos-comision', verificarToken, LegislativoController.obtenerTiposComision)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
