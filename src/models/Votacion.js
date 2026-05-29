@@ -9,7 +9,7 @@ const { pool } = require('../config/db')
 // Validar si una sesión tiene quórum legal
 // Llama a la función validar_quorum_legal(id_sesion) ya definida en la BD
 const validarQuorumSesion = async (id_sesion) => {
-    const query = `SELECT validar_quorum_legal($1) AS tiene_quorum`
+    const query = `SELECT validar_quorum_legal($1::INT) AS tiene_quorum`
     const resultado = await pool.query(query, [id_sesion])
     return resultado.rows[0].tiene_quorum
 }
