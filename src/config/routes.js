@@ -37,6 +37,7 @@ router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obten
 router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
 router.get('/catalogos/roles-comision', verificarToken, LegislativoController.obtenerRolesComision)
 router.get('/catalogos/tipos-comision', verificarToken, LegislativoController.obtenerTiposComision)
+router.get('/catalogos/estados-asistencia', verificarToken, LegislativoController.obtenerEstadosAsistencia)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
