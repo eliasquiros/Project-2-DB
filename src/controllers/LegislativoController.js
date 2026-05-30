@@ -344,6 +344,16 @@ const obtenerTiposComision = async (req, res) => {
     }
 }
 
+// Issue 11: Estados de asistencia para el selector de la vista
+const obtenerEstadosAsistencia = async (req, res) => {
+    try {
+        const estados = await Catalogo.obtenerEstadosAsistencia()
+        res.json(estados)
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener estados de asistencia' })
+    }
+}
+
 module.exports = {
     obtenerReglamentos,
     obtenerArbol,
@@ -360,5 +370,6 @@ module.exports = {
     obtenerHistorialReformas,
     obtenerSectores,
     obtenerRolesComision,
-    obtenerTiposComision
+    obtenerTiposComision,
+    obtenerEstadosAsistencia
 }
