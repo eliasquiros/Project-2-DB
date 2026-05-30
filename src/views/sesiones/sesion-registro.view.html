@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nueva Sesión — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1 { color: #1a1a2e; margin-bottom: 1.5rem; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 500px;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 0.4rem;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #1a1a2e;
+        }
+
+        .acciones {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        button {
+            padding: 0.6rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+        button.secundario {
+            background: white;
+            color: #1a1a2e;
+            border: 1px solid #1a1a2e;
+        }
+        button.secundario:hover { background: #f0f0f0; }
+
+        .error {
+            color: #c0392b;
+            font-size: 0.85rem;
+            margin-top: 0.3rem;
+            display: none;
+        }
+
+        .mensaje-exito {
+            background: #d4edda;
+            color: #155724;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏛️ Nueva Sesión Plenaria</h1>
+
+    <div class="card">
+        <div class="mensaje-exito" id="mensaje-exito">
+            ✓ Sesión creada correctamente. Redirigiendo...
+        </div>
+
+        <div class="form-group">
+            <label>Número de sesión *</label>
+            <input type="text" id="input-numero" placeholder="Ej: S-001-2026" />
+            <span class="error" id="error-numero">El número de sesión es obligatorio</span>
+        </div>
+
+        <div class="form-group">
+            <label>Fecha *</label>
+            <input type="date" id="input-fecha" />
+            <span class="error" id="error-fecha">La fecha es obligatoria</span>
+        </div>
+
+        <div class="form-group">
+            <label>Quórum requerido *</label>
+            <input type="number" id="input-quorum" min="1" placeholder="Ej: 25" />
+            <span class="error" id="error-quorum">El quórum debe ser mayor a 0</span>
+        </div>
+
+        <div class="form-group">
+            <label>Tipo de sesión *</label>
+            <select id="select-tipo">
+                <option value="">-- Seleccione --</option>
+            </select>
+            <span class="error" id="error-tipo">Seleccione un tipo</span>
+        </div>
+
+        <div class="form-group">
+            <label>Modalidad *</label>
+            <select id="select-modalidad">
+                <option value="">-- Seleccione --</option>
+            </select>
+            <span class="error" id="error-modalidad">Seleccione una modalidad</span>
+        </div>
+
+        <div class="form-group">
+            <label>Link del acta (opcional)</label>
+            <input type="text" id="input-acta" placeholder="https://..." />
+        </div>
+
+        <div class="acciones">
+            <button class="secundario"
+                onclick="window.location.href='sesion-lista.view.html'">
+                Cancelar
+            </button>
+            <button onclick="guardar()">Guardar sesión</button>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token')
+
+        async function cargarCatalogos() {
+            try {
+                const res = await fetch('/api/sesiones/catalogos', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Error al cargar catálogos')
+
+                const { tipos_sesion, tipos_modalidad } = await res.json()
+
+                const selectTipo = document.getElementById('select-tipo')
+                tipos_sesion.forEach(t => {
+                    selectTipo.innerHTML +=
+                        `<option value="${t.id_item}">${t.nombre}</option>`
+                })
+
+                const selectModalidad = document.getElementById('select-modalidad')
+                tipos_modalidad.forEach(m => {
+                    selectModalidad.innerHTML +=
+                        `<option value="${m.id_item}">${m.nombre}</option>`
+                })
+
+            } catch (error) {
+                console.error('Error al cargar catálogos:', error.message)
+            }
+        }
+
+        async function guardar() {
+            const numero_sesion     = document.getElementById('input-numero').value.trim()
+            const fecha             = document.getElementById('input-fecha').value
+            const quorum_requerido  = document.getElementById('input-quorum').value
+            const id_tipo_sesion    = document.getElementById('select-tipo').value
+            const id_tipo_modalidad = document.getElementById('select-modalidad').value
+            const link_acta         = document.getElementById('input-acta').value.trim()
+
+            const campos = ['numero', 'fecha', 'quorum', 'tipo', 'modalidad']
+            campos.forEach(campo => {
+                const el = document.getElementById(`error-${campo}`)
+                if (el) el.style.display = 'none'
+            })
+
+            let hayError = false
+
+            if (!numero_sesion) {
+                document.getElementById('error-numero').style.display = 'block'
+                hayError = true
+            }
+            if (!fecha) {
+                document.getElementById('error-fecha').style.display = 'block'
+                hayError = true
+            }
+            if (!quorum_requerido || quorum_requerido < 1) {
+                document.getElementById('error-quorum').style.display = 'block'
+                hayError = true
+            }
+            if (!id_tipo_sesion) {
+                document.getElementById('error-tipo').style.display = 'block'
+                hayError = true
+            }
+            if (!id_tipo_modalidad) {
+                document.getElementById('error-modalidad').style.display = 'block'
+                hayError = true
+            }
+
+            if (hayError) return
+
+            try {
+                const res = await fetch('/api/sesiones', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        numero_sesion,
+                        fecha,
+                        quorum_requerido: parseInt(quorum_requerido),
+                        id_tipo_sesion,
+                        id_tipo_modalidad,
+                        link_acta: link_acta || null
+                    })
+                })
+
+                const datos = await res.json()
+
+                if (!res.ok) {
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                document.getElementById('mensaje-exito').style.display = 'block'
+                setTimeout(() => {
+                    window.location.href = `sesion-detalle.view.html?id=${datos.id_sesion}`
+                }, 1500)
+
+            } catch (error) {
+                alert('Error al guardar: ' + error.message)
+            }
+        }
+        cargarCatalogos()
+    </script>
+
+</body>
+</html>
