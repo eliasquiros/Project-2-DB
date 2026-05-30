@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle de Sesión — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1, h2 { color: #1a1a2e; }
+        h2 { margin-top: 2rem; border-bottom: 2px solid #1a1a2e; padding-bottom: 0.5rem; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item label {
+            font-size: 0.8rem;
+            color: #777;
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+
+        .info-item span {
+            font-size: 1rem;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+
+        .quorum-banner {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .quorum-ok { background: #d4edda; color: #155724; }
+        .quorum-falta { background: #f8d7da; color: #721c24; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        .badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .badge-presente   { background: #d4edda; color: #155724; }
+        .badge-ausente    { background: #f8d7da; color: #721c24; }
+        .badge-justificado { background: #fff3cd; color: #856404; }
+
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+        button.secundario {
+            background: white;
+            color: #1a1a2e;
+            border: 1px solid #1a1a2e;
+            margin-right: 0.5rem;
+        }
+        button.secundario:hover { background: #f0f0f0; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-overlay.activo { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 520px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .modal h3 { margin-top: 0; color: #1a1a2e; }
+
+        .asistente-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #eee;
+        }
+        .asistente-row:last-child { border-bottom: none; }
+
+        select {
+            padding: 0.3rem 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .acciones-modal {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .mensaje-estado {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .error { color: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <button class="secundario" onclick="window.location.href='sesion-lista.view.html'">
+        ← Volver a sesiones
+    </button>
+
+    <h1 id="titulo-sesion">Cargando...</h1>
+
+    <!-- ── BANNER DE QUÓRUM ── -->
+    <div class="quorum-banner" id="quorum-banner">
+        Verificando quórum...
+    </div>
+
+    <!-- ── INFORMACIÓN GENERAL ── -->
+    <div class="card">
+        <div class="info-grid">
+            <div class="info-item">
+                <label>Tipo de sesión</label>
+                <span id="tipo-sesion">—</span>
+            </div>
+            <div class="info-item">
+                <label>Modalidad</label>
+                <span id="modalidad">—</span>
+            </div>
+            <div class="info-item">
+                <label>Fecha</label>
+                <span id="fecha-sesion">—</span>
+            </div>
+            <div class="info-item">
+                <label>Quórum requerido</label>
+                <span id="quorum-requerido">—</span>
+            </div>
+            <div class="info-item">
+                <label>Acta</label>
+                <span id="link-acta">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── ASISTENCIA ── -->
+    <h2>Registro de asistencia</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Cédula</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpo-asistencia">
+                <tr><td colspan="3" class="mensaje-estado">Cargando...</td></tr>
+            </tbody>
+        </table>
+        <button onclick="abrirModalAsistencia()">📋 Registrar asistencia</button>
+    </div>
+
+    <!-- ── MODAL: REGISTRAR ASISTENCIA ── -->
+    <div class="modal-overlay" id="modal-asistencia">
+        <div class="modal">
+            <h3>Registrar asistencia</h3>
+            <p style="font-size:0.85rem;color:#555;">
+                Seleccioná el estado de cada asambleísta activo.
+            </p>
+            <div id="lista-asistencia-modal">
+                <p class="mensaje-estado">Cargando asambleístas...</p>
+            </div>
+            <div class="acciones-modal">
+                <button class="secundario" onclick="cerrarModal()">Cancelar</button>
+                <button onclick="guardarAsistencia()">Guardar asistencia</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams(window.location.search)
+        const idSesion = params.get('id')
+
+        let estadosAsistencia = []
+
+        // ── CARGAR DETALLE ────────────────────────────────────────────────────
+        async function cargarDetalle() {
+            try {
+                const [resSesion, resQuorum] = await Promise.all([
+                    fetch(`/api/sesiones/${idSesion}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch(`/api/sesiones/${idSesion}/quorum`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ])
+
+                if (!resSesion.ok) throw new Error('Sesión no encontrada')
+
+                const sesion = await resSesion.json()
+                const quorum = await resQuorum.json()
+
+                // Llenar encabezado
+                document.getElementById('titulo-sesion').textContent =
+                    `🏛️ Sesión ${sesion.numero_sesion}`
+                document.getElementById('tipo-sesion').textContent = sesion.tipo_sesion
+                document.getElementById('modalidad').textContent = sesion.modalidad
+                document.getElementById('fecha-sesion').textContent =
+                    new Date(sesion.fecha).toLocaleDateString('es-CR')
+                document.getElementById('quorum-requerido').textContent =
+                    sesion.quorum_requerido
+
+                if (sesion.link_acta) {
+                    document.getElementById('link-acta').innerHTML =
+                        `<a href="${sesion.link_acta}" target="_blank">Ver acta</a>`
+                } else {
+                    document.getElementById('link-acta').textContent = 'No disponible'
+                }
+
+                // Banner de quórum
+                const banner = document.getElementById('quorum-banner')
+                const tieneQuorum = quorum.quorum_legal || quorum.tiene_quorum
+                if (tieneQuorum) {
+                    banner.className = 'quorum-banner quorum-ok'
+                    banner.textContent =
+                        `✓ Quórum legal alcanzado — ${quorum.presentes || ''} presentes`
+                } else {
+                    banner.className = 'quorum-banner quorum-falta'
+                    banner.textContent =
+                        `✗ Sin quórum legal — Se requieren ${sesion.quorum_requerido} miembros`
+                }
+
+                // Tabla de asistencia
+                renderizarAsistencia(sesion.asistencia)
+
+            } catch (error) {
+                document.getElementById('titulo-sesion').textContent = 'Error'
+                console.error(error.message)
+            }
+        }
+
+        function renderizarAsistencia(asistencia) {
+            const cuerpo = document.getElementById('cuerpo-asistencia')
+
+            if (!asistencia || asistencia.length === 0) {
+                cuerpo.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="mensaje-estado">
+                            No hay asistencia registrada aún.
+                        </td>
+                    </tr>`
+                return
+            }
+
+            cuerpo.innerHTML = ''
+            asistencia.forEach(a => {
+                const badgeClass = {
+                    'Presente':    'badge-presente',
+                    'Ausente':     'badge-ausente',
+                    'Justificado': 'badge-justificado'
+                }[a.estado_asistencia] || 'badge-ausente'
+
+                cuerpo.innerHTML += `
+                    <tr>
+                        <td>${a.nombre_asambleista}</td>
+                        <td>${a.cedula}</td>
+                        <td>
+                            <span class="badge ${badgeClass}">
+                                ${a.estado_asistencia}
+                            </span>
+                        </td>
+                    </tr>`
+            })
+        }
+
+        // ── MODAL ASISTENCIA ──────────────────────────────────────────────────
+        async function abrirModalAsistencia() {
+            const lista = document.getElementById('lista-asistencia-modal')
+            lista.innerHTML = '<p class="mensaje-estado">Cargando...</p>'
+            document.getElementById('modal-asistencia').classList.add('activo')
+
+            try {
+                const [resAsam, resCat] = await Promise.all([
+                    fetch('/api/asambleistas', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }),
+                    fetch('/api/sesiones/catalogos', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ])
+
+                const asambleistas = await resAsam.json()
+                const catalogos = await resCat.json()
+
+                // Guardamos los estados para usarlos al guardar
+                estadosAsistencia = catalogos.tipos_sesion || []
+
+                // Obtener estados de asistencia del catálogo
+                const resEstados = await fetch('/api/catalogos/estados-asistencia', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const estados = await resEstados.json()
+
+                lista.innerHTML = ''
+                asambleistas.forEach(a => {
+                    const opciones = estados.map(e =>
+                        `<option value="${e.id_item}">${e.nombre}</option>`
+                    ).join('')
+
+                    lista.innerHTML += `
+                        <div class="asistente-row">
+                            <span>${a.nombre} (${a.cedula})</span>
+                            <select id="estado-${a.asambleista_id}">
+                                ${opciones}
+                            </select>
+                        </div>`
+                })
+
+                // Guardar lista de asambleístas para usarla al guardar
+                lista.dataset.asambleistas = JSON.stringify(
+                    asambleistas.map(a => a.asambleista_id)
+                )
+
+            } catch (error) {
+                lista.innerHTML = `<p class="error">Error: ${error.message}</p>`
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-asistencia').classList.remove('activo')
+        }
+
+        async function guardarAsistencia() {
+            const lista = document.getElementById('lista-asistencia-modal')
+            const ids = JSON.parse(lista.dataset.asambleistas || '[]')
+
+            const asistencias = ids.map(id => ({
+                id_asambleista: id,
+                id_estado_asistencia: document.getElementById(`estado-${id}`).value
+            }))
+
+            try {
+                const res = await fetch(`/api/sesiones/${idSesion}/asistencia`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ asistencias })
+                })
+
+                const datos = await res.json()
+
+                if (!res.ok) {
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                cerrarModal()
+                cargarDetalle()
+
+            } catch (error) {
+                alert('Error al guardar: ' + error.message)
+            }
+        }
+
+        // ── INICIALIZACIÓN ────────────────────────────────────────────────────
+        if (!idSesion) {
+            document.getElementById('titulo-sesion').textContent = 'ID no especificado'
+        } else {
+            cargarDetalle()
+        }
+    </script>
+
+</body>
+</html>
