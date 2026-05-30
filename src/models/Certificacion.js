@@ -55,20 +55,21 @@ const obtenerDatosCertificacion = async (id_asambleista, fecha_inicio, fecha_fin
 
     // Obtener participaciones desde la vista consolidada
     const queryParticipaciones = `
-        SELECT DISTINCT
-            propuesta_titulo,
-            codigo_air,
-            etapa_propuesta,
-            estado_propuesta,
-            tipo_participacion,
-            fecha_sesion,
-            numero_sesion,
-            numero_resolucion
-        FROM v_hoja_vida_asambleista
-        WHERE asambleista_id = $1
-          AND (fecha_sesion IS NULL OR fecha_sesion BETWEEN $2 AND $3)
-        ORDER BY fecha_sesion NULLS LAST
+    SELECT DISTINCT ON (propuesta_titulo, tipo_participacion)
+        propuesta_titulo,
+        codigo_air,
+        etapa_propuesta,
+        estado_propuesta,
+        tipo_participacion,
+        fecha_sesion,
+        numero_sesion,
+        numero_resolucion
+    FROM v_hoja_vida_asambleista
+    WHERE asambleista_id = $1
+      AND (fecha_sesion IS NULL OR fecha_sesion BETWEEN $2::DATE AND $3::DATE)
+    ORDER BY propuesta_titulo, tipo_participacion, fecha_sesion NULLS LAST
     `
+    
     const resultParticipaciones = await pool.query(queryParticipaciones, [
         id_asambleista,
         fecha_inicio,
