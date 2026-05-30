@@ -1,0 +1,460 @@
+
+raw
+Auditoria dashboard.view · HTML
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitácora de Auditoría - Sistema AIR</title>
+    <link rel="stylesheet" href="../shared/global.css">
+    <style>
+        .resumen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+        }
+ 
+        .resumen-item {
+            background: var(--color-blanco);
+            border-radius: var(--radio-borde);
+            box-shadow: var(--sombra);
+            padding: var(--espacio-md);
+            text-align: center;
+            border-top: 4px solid var(--color-primario);
+        }
+ 
+        .resumen-item.inserts { border-top-color: #27ae60; }
+        .resumen-item.updates { border-top-color: #f39c12; }
+        .resumen-item.deletes { border-top-color: #c0392b; }
+ 
+        .resumen-item .numero {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--color-navbar);
+            line-height: 1;
+        }
+ 
+        .resumen-item .etiqueta {
+            font-size: 0.8rem;
+            color: var(--color-texto-suave);
+            margin-top: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+ 
+        .resumen-item .ultimo {
+            font-size: 0.75rem;
+            color: var(--color-texto-suave);
+            margin-top: 0.5rem;
+        }
+ 
+        .filtros-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--espacio-md);
+            align-items: end;
+        }
+ 
+        .accion-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+ 
+        .accion-INSERT { background: #d5f5e3; color: #27ae60; }
+        .accion-UPDATE { background: #fef9e7; color: #f39c12; }
+        .accion-DELETE { background: #fadbd8; color: #c0392b; }
+ 
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            gap: var(--espacio-md);
+            padding: var(--espacio-sm) 0;
+            border-bottom: 1px solid var(--color-borde);
+        }
+ 
+        .ranking-item:last-child { border-bottom: none; }
+ 
+        .ranking-numero {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--color-navbar);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+ 
+        .ranking-info { flex: 1; }
+        .ranking-info strong { display: block; font-size: 0.9rem; }
+        .ranking-info span { font-size: 0.8rem; color: var(--color-texto-suave); }
+ 
+        .ranking-total {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--color-primario);
+        }
+ 
+        .dos-columnas {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--espacio-lg);
+        }
+ 
+        @media (max-width: 768px) {
+            .dos-columnas { grid-template-columns: 1fr; }
+        }
+ 
+        .tabla-log td { font-size: 0.85rem; }
+        .tabla-log .detalle { max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body>
+ 
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="navbar-brand">Sistema de Gestión Legislativa <span>AIR</span></div>
+    <div class="navbar-usuario">
+        <span>👤</span>
+        <span id="nombre-usuario">Cargando...</span>
+        <span>|</span>
+        <a href="../auth/login.view.html" style="color:white; font-size:0.85rem;">Cerrar sesión</a>
+    </div>
+</nav>
+ 
+<div class="contenedor">
+ 
+    <div class="alerta alerta-error" id="alerta-error"></div>
+    <div class="alerta alerta-exito" id="alerta-exito"></div>
+ 
+    <!-- ENCABEZADO -->
+    <div style="margin-bottom: var(--espacio-lg);">
+        <h2 style="color: var(--color-navbar); font-size: 1.4rem;">📋 Bitácora de Auditoría</h2>
+        <p style="color: var(--color-texto-suave); font-size: 0.9rem;">Trazabilidad completa de todas las acciones críticas del sistema.</p>
+    </div>
+ 
+    <!-- RESUMEN GENERAL -->
+    <div class="resumen-grid" id="resumen-grid">
+        <div class="resumen-item">
+            <div class="numero" id="total-logs">—</div>
+            <div class="etiqueta">Total Eventos</div>
+        </div>
+        <div class="resumen-item inserts">
+            <div class="numero" id="total-inserts">—</div>
+            <div class="etiqueta">✅ Inserciones</div>
+        </div>
+        <div class="resumen-item updates">
+            <div class="numero" id="total-updates">—</div>
+            <div class="etiqueta">✏️ Actualizaciones</div>
+        </div>
+        <div class="resumen-item deletes">
+            <div class="numero" id="total-deletes">—</div>
+            <div class="etiqueta">🗑️ Eliminaciones</div>
+        </div>
+        <div class="resumen-item">
+            <div class="numero" style="font-size:1rem;" id="ultimo-evento">—</div>
+            <div class="etiqueta">Último Evento</div>
+        </div>
+    </div>
+ 
+    <!-- DOS COLUMNAS: CERTIFICACIONES POR MES + RANKING -->
+    <div class="dos-columnas">
+ 
+        <!-- CERTIFICACIONES POR MES -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">📊 Certificaciones por Mes</div>
+            <div id="tabla-cert-mes">
+                <p style="color:var(--color-texto-suave); font-size:0.9rem;">Cargando...</p>
+            </div>
+        </div>
+ 
+        <!-- RANKING ASAMBLEÍSTAS -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">🏆 Asambleístas más Certificados</div>
+            <div id="lista-ranking">
+                <p style="color:var(--color-texto-suave); font-size:0.9rem;">Cargando...</p>
+            </div>
+        </div>
+ 
+    </div>
+ 
+    <!-- BITÁCORA DE LOGS -->
+    <div class="tarjeta">
+        <div class="tarjeta-titulo">🔍 Bitácora de Eventos</div>
+ 
+        <!-- FILTROS -->
+        <div class="filtros-grid" style="margin-bottom: var(--espacio-lg);">
+            <div class="form-grupo">
+                <label>Desde</label>
+                <input type="date" id="filtro-fecha-inicio">
+            </div>
+            <div class="form-grupo">
+                <label>Hasta</label>
+                <input type="date" id="filtro-fecha-fin">
+            </div>
+            <div class="form-grupo">
+                <label>Tabla</label>
+                <select id="filtro-tabla">
+                    <option value="">Todas</option>
+                </select>
+            </div>
+            <div class="form-grupo">
+                <label>&nbsp;</label>
+                <button class="btn btn-primario" onclick="aplicarFiltros()">🔍 Filtrar</button>
+            </div>
+            <div class="form-grupo">
+                <label>&nbsp;</label>
+                <button class="btn btn-secundario" onclick="limpiarFiltros()">↺ Limpiar</button>
+            </div>
+        </div>
+ 
+        <!-- TABLA DE LOGS -->
+        <div class="tabla-contenedor">
+            <table class="tabla-log">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha / Hora</th>
+                        <th>Usuario</th>
+                        <th>Acción</th>
+                        <th>Tabla</th>
+                        <th>ID Registro</th>
+                        <th>Detalle</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-logs-body">
+                    <tr><td colspan="8" style="text-align:center; color:var(--color-texto-suave);">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+ 
+        <p id="total-resultados" style="font-size:0.85rem; color:var(--color-texto-suave); margin-top:var(--espacio-sm);"></p>
+    </div>
+ 
+</div>
+ 
+<script>
+    const TOKEN = localStorage.getItem('token')
+    const API   = '/api'
+ 
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!TOKEN) { window.location.href = '../auth/login.view.html'; return }
+ 
+        const payload = JSON.parse(atob(TOKEN.split('.')[1]))
+        document.getElementById('nombre-usuario').textContent = payload.username + ' (' + payload.rol + ')'
+ 
+        cargarResumen()
+        cargarCertificacionesPorMes()
+        cargarRanking()
+        cargarTablas()
+        cargarLogs()
+    })
+ 
+    // ── RESUMEN GENERAL ───────────────────────────────────────────────────────
+    async function cargarResumen() {
+        try {
+            const res  = await fetch(`${API}/auditoria/resumen`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+ 
+            document.getElementById('total-logs').textContent    = data.total_logs    || 0
+            document.getElementById('total-inserts').textContent = data.total_inserts || 0
+            document.getElementById('total-updates').textContent = data.total_updates || 0
+            document.getElementById('total-deletes').textContent = data.total_deletes || 0
+ 
+            if (data.ultimo_evento) {
+                const fecha = new Date(data.ultimo_evento)
+                document.getElementById('ultimo-evento').textContent =
+                    fecha.toLocaleDateString('es-CR') + ' ' + fecha.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })
+            } else {
+                document.getElementById('ultimo-evento').textContent = 'Sin eventos'
+            }
+        } catch (e) {
+            mostrarAlerta('error', 'Error al cargar el resumen de auditoría.')
+        }
+    }
+ 
+    // ── CERTIFICACIONES POR MES ───────────────────────────────────────────────
+    async function cargarCertificacionesPorMes() {
+        try {
+            const res  = await fetch(`${API}/auditoria/certificaciones-por-mes`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const contenedor = document.getElementById('tabla-cert-mes')
+ 
+            if (!data.datos || data.datos.length === 0) {
+                contenedor.innerHTML = '<p style="color:var(--color-texto-suave); font-size:0.9rem;">No hay certificaciones registradas.</p>'
+                return
+            }
+ 
+            const meses = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+ 
+            const filas = data.datos.map(d => `
+                <tr>
+                    <td>${meses[d.mes]} ${d.anno}</td>
+                    <td><span class="badge badge-activo">${d.total_emitidas}</span></td>
+                    <td><span class="badge badge-rechazada">${d.total_anuladas}</span></td>
+                </tr>
+            `).join('')
+ 
+            contenedor.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Período</th>
+                            <th>Emitidas</th>
+                            <th>Anuladas</th>
+                        </tr>
+                    </thead>
+                    <tbody>${filas}</tbody>
+                </table>
+            `
+        } catch (e) {
+            document.getElementById('tabla-cert-mes').innerHTML =
+                '<p style="color:var(--color-error);">Error al cargar datos.</p>'
+        }
+    }
+ 
+    // ── RANKING ASAMBLEÍSTAS ──────────────────────────────────────────────────
+    async function cargarRanking() {
+        try {
+            const res  = await fetch(`${API}/auditoria/asambleistas-consultados`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const contenedor = document.getElementById('lista-ranking')
+ 
+            if (!data.ranking || data.ranking.length === 0) {
+                contenedor.innerHTML = '<p style="color:var(--color-texto-suave); font-size:0.9rem;">No hay datos de certificaciones.</p>'
+                return
+            }
+ 
+            contenedor.innerHTML = data.ranking.map((a, i) => `
+                <div class="ranking-item">
+                    <div class="ranking-numero">${i + 1}</div>
+                    <div class="ranking-info">
+                        <strong>${a.nombre}</strong>
+                        <span>${a.cedula}</span>
+                    </div>
+                    <div class="ranking-total">${a.total_certificaciones}</div>
+                </div>
+            `).join('')
+        } catch (e) {
+            document.getElementById('lista-ranking').innerHTML =
+                '<p style="color:var(--color-error);">Error al cargar ranking.</p>'
+        }
+    }
+ 
+    // ── CARGAR TABLAS PARA FILTRO ─────────────────────────────────────────────
+    async function cargarTablas() {
+        try {
+            const res  = await fetch(`${API}/auditoria/tablas`, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const select = document.getElementById('filtro-tabla')
+ 
+            if (data.tablas && data.tablas.length > 0) {
+                data.tablas.forEach(t => {
+                    const opt = document.createElement('option')
+                    opt.value = t
+                    opt.textContent = t
+                    select.appendChild(opt)
+                })
+            }
+        } catch (e) {
+            // Si falla el filtro de tablas no es crítico
+        }
+    }
+ 
+    // ── CARGAR LOGS ───────────────────────────────────────────────────────────
+    async function cargarLogs(filtros = {}) {
+        try {
+            const params = new URLSearchParams()
+            if (filtros.fecha_inicio)   params.append('fecha_inicio',   filtros.fecha_inicio)
+            if (filtros.fecha_fin)      params.append('fecha_fin',      filtros.fecha_fin)
+            if (filtros.tabla_afectada) params.append('tabla_afectada', filtros.tabla_afectada)
+ 
+            const url = `${API}/auditoria/logs${params.toString() ? '?' + params.toString() : ''}`
+            const res  = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${TOKEN}` }
+            })
+            const data = await res.json()
+            const tbody = document.getElementById('tabla-logs-body')
+            const total = document.getElementById('total-resultados')
+ 
+            if (!data.logs || data.logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--color-texto-suave);">No hay eventos registrados.</td></tr>'
+                total.textContent = ''
+                return
+            }
+ 
+            tbody.innerHTML = data.logs.map(log => {
+                const fecha = new Date(log.fecha_hora)
+                const fechaStr = fecha.toLocaleDateString('es-CR') + ' ' +
+                    fecha.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+ 
+                return `
+                    <tr>
+                        <td>${log.id_log}</td>
+                        <td style="white-space:nowrap;">${fechaStr}</td>
+                        <td>${log.usuario || '—'}</td>
+                        <td><span class="accion-badge accion-${log.accion}">${log.accion}</span></td>
+                        <td>${log.tabla_afectada}</td>
+                        <td>${log.registro_id || '—'}</td>
+                        <td class="detalle" title="${log.detalle || ''}">${log.detalle || '—'}</td>
+                        <td>${log.dir_ip || '—'}</td>
+                    </tr>
+                `
+            }).join('')
+ 
+            total.textContent = `Mostrando ${data.logs.length} evento(s)`
+        } catch (e) {
+            mostrarAlerta('error', 'Error al cargar la bitácora.')
+        }
+    }
+ 
+    // ── FILTROS ───────────────────────────────────────────────────────────────
+    function aplicarFiltros() {
+        cargarLogs({
+            fecha_inicio:   document.getElementById('filtro-fecha-inicio').value || null,
+            fecha_fin:      document.getElementById('filtro-fecha-fin').value    || null,
+            tabla_afectada: document.getElementById('filtro-tabla').value        || null
+        })
+    }
+ 
+    function limpiarFiltros() {
+        document.getElementById('filtro-fecha-inicio').value = ''
+        document.getElementById('filtro-fecha-fin').value    = ''
+        document.getElementById('filtro-tabla').value        = ''
+        cargarLogs()
+    }
+ 
+    // ── ALERTAS ───────────────────────────────────────────────────────────────
+    function mostrarAlerta(tipo, mensaje) {
+        ['error', 'exito'].forEach(t => {
+            const el = document.getElementById(`alerta-${t}`)
+            el.classList.remove('visible')
+            el.textContent = ''
+        })
+        const el = document.getElementById(`alerta-${tipo}`)
+        el.textContent = mensaje
+        el.classList.add('visible')
+        setTimeout(() => el.classList.remove('visible'), 5000)
+    }
+</script>
+</body>
+</html>
