@@ -1,20 +1,95 @@
 // =============================================================================
 // Controlador: ReporteController.js
 // Módulo 5: Fe Pública y Certificación
-// Issue 17: Generador de Atestados (pendiente)
+// Issue 17: Generador de Atestados
 // Issue 13: Bitácora de Auditoría y Trazabilidad
 // =============================================================================
 
 const Auditoria = require('../models/Auditoria')
+// Issue 17
+const Certificacion = require('../models/Certificacion')
+const { generarCertificacionPDF } = require('../services/PDFService')
 
-// ── CERTIFICACIONES (Issue 17 — pendiente) ────────────────────────────────────
+// ── CERTIFICACIONES (Issue 17) ────────────────────────────────────
 
 const generarCertificacion = async (req, res) => {
-    res.json({ mensaje: 'ReporteController - generarCertificacion OK' })
+    try {
+        const { id_asambleista, fecha_inicio, fecha_fin } = req.body
+
+        if (!id_asambleista || !fecha_inicio || !fecha_fin) {
+            return res.status(400).json({
+                error: 'El asambleísta, fecha inicio y fecha fin son obligatorios'
+            })
+        }
+
+        // Obtener todos los datos del asambleísta
+        const datos = await Certificacion.obtenerDatosCertificacion(
+            id_asambleista,
+            fecha_inicio,
+            fecha_fin
+        )
+
+        if (!datos) {
+            return res.status(404).json({ error: 'Asambleísta no encontrado' })
+        }
+
+        // Generar el PDF y el hash
+        // Pasamos folio temporal para el PDF, se actualizará después
+        const datosConFolioTemp = { ...datos, folio_unico: 'PENDIENTE' }
+        const { pdfBuffer, hash } = await generarCertificacionPDF(datosConFolioTemp)
+
+        // Registrar en la BD, el trigger asigna el folio real automáticamente
+        const certificacion = await Certificacion.registrarCertificacion(
+            id_asambleista,
+            hash,
+            req.usuario.id
+        )
+
+        // Regenerar el PDF con el folio real
+        const datosConFolioReal = { ...datos, folio_unico: certificacion.folio_unico }
+        const { pdfBuffer: pdfFinal } = await generarCertificacionPDF(datosConFolioReal)
+
+        // Devolver el PDF
+        res.setHeader('Content-Type', 'application/pdf')
+        res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${certificacion.folio_unico}.pdf"`
+        )
+        res.send(pdfFinal)
+
+    } catch (error) {
+        console.error('Error al generar certificación:', error.message)
+        res.status(500).json({ error: 'Error interno al generar la certificación' })
+    }
 }
 
+// Verifica la autenticidad de una certificación por folio
 const obtenerPorFolio = async (req, res) => {
-    res.json({ mensaje: 'ReporteController - obtenerPorFolio OK' })
+    try {
+        const { folio } = req.params
+
+        const certificacion = await Certificacion.obtenerPorFolio(folio)
+
+        if (!certificacion) {
+            return res.status(404).json({ error: 'Certificación no encontrada' })
+        }
+
+        res.json(certificacion)
+    } catch (error) {
+        console.error('Error al obtener certificación:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
+// Historial de certificaciones emitidas para el dashboard
+const obtenerHistorial = async (req, res) => {
+    try {
+        const historial = await Certificacion.obtenerHistorial()
+        res.json(historial)
+    } catch (error) {
+        console.error('Error al obtener historial:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
 }
 
 // ── AUDITORÍA (Issue 13) ──────────────────────────────────────────────────────
@@ -91,6 +166,7 @@ const obtenerTablasAuditadas = async (req, res) => {
 module.exports = {
     generarCertificacion,
     obtenerPorFolio,
+    obtenerHistorial,
     obtenerLogs,
     obtenerResumenAuditoria,
     obtenerCertificacionesPorMes,
