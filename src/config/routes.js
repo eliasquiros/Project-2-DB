@@ -58,6 +58,7 @@ router.get('/votaciones/:id/resultado', verificarToken, LegislativoController.ca
 router.get('/votaciones/:id/votos', verificarToken, LegislativoController.obtenerVotosResolucion)
 
 // ── CERTIFICACIONES ───────────────────────────────
+router.get('/certificaciones', verificarToken, ReporteController.obtenerHistorial)
 router.post('/certificaciones', verificarToken, ReporteController.generarCertificacion)
 router.get('/certificaciones/:folio', verificarToken, ReporteController.obtenerPorFolio)
 
