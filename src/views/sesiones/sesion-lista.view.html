@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sesiones Plenarias — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1 { color: #1a1a2e; margin-bottom: 1.5rem; }
+
+        .controles {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="text"] {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 300px;
+        }
+
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f9f9f9; }
+
+        .badge {
+            padding: 0.2rem 0.6rem;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .badge-ordinaria  { background: #d4edda; color: #155724; }
+        .badge-extraordinaria { background: #fff3cd; color: #856404; }
+
+        a { color: #1a1a2e; text-decoration: none; font-weight: bold; }
+        a:hover { text-decoration: underline; }
+
+        .mensaje-estado {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .error { color: #c0392b; }
+    </style>
+</head>
+<body>
+
+    <h1>🏛️ Sesiones Plenarias</h1>
+
+    <div class="controles">
+        <input type="text" id="buscador" placeholder="Buscar por número o tipo..." />
+        <button onclick="window.location.href='sesion-registro.view.html'">
+            + Nueva Sesión
+        </button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Número</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Modalidad</th>
+                <th>Quórum requerido</th>
+                <th>Presentes</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpo-tabla">
+            <tr>
+                <td colspan="7" class="mensaje-estado">Cargando sesiones...</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        const token = localStorage.getItem('token')
+
+        async function cargarSesiones() {
+            try {
+                const res = await fetch('/api/sesiones', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Error al obtener sesiones')
+
+                const sesiones = await res.json()
+                const cuerpo = document.getElementById('cuerpo-tabla')
+
+                if (sesiones.length === 0) {
+                    cuerpo.innerHTML = `
+                        <tr>
+                            <td colspan="7" class="mensaje-estado">
+                                No hay sesiones registradas.
+                            </td>
+                        </tr>`
+                    return
+                }
+
+                cuerpo.innerHTML = ''
+                sesiones.forEach(s => {
+                    const fecha = new Date(s.fecha).toLocaleDateString('es-CR')
+                    const tipoBadge = s.tipo_sesion === 'Ordinaria'
+                        ? `<span class="badge badge-ordinaria">Ordinaria</span>`
+                        : `<span class="badge badge-extraordinaria">Extraordinaria</span>`
+
+                    cuerpo.innerHTML += `
+                        <tr>
+                            <td>${s.numero_sesion}</td>
+                            <td>${fecha}</td>
+                            <td>${tipoBadge}</td>
+                            <td>${s.modalidad}</td>
+                            <td>${s.quorum_requerido}</td>
+                            <td>${s.total_presentes}</td>
+                            <td>
+                                <a href="sesion-detalle.view.html?id=${s.id_sesion}">
+                                    Ver detalle
+                                </a>
+                            </td>
+                        </tr>`
+                })
+
+            } catch (error) {
+                document.getElementById('cuerpo-tabla').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="mensaje-estado error">
+                            Error: ${error.message}
+                        </td>
+                    </tr>`
+            }
+        }
+
+        document.getElementById('buscador').addEventListener('input', function () {
+            const texto = this.value.toLowerCase()
+            const filas = document.querySelectorAll('#cuerpo-tabla tr')
+            filas.forEach(fila => {
+                fila.style.display = fila.textContent.toLowerCase().includes(texto) ? '' : 'none'
+            })
+        })
+
+        cargarSesiones()
+    </script>
+
+</body>
+</html>
