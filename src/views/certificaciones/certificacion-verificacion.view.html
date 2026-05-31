@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Certificación — AIR TEC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 2rem;
+            background: #f5f5f5;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 { color: #1a1a2e; text-align: center; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 0.4rem;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.8rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+
+        .resultado {
+            display: none;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .resultado.valido {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+
+        .resultado.invalido {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
+        }
+
+        .resultado h3 { margin-top: 0; }
+
+        .dato-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            font-size: 0.9rem;
+        }
+
+        .dato-row:last-child { border-bottom: none; }
+        .dato-row label { color: #555; }
+        .dato-row span { font-weight: bold; }
+
+        .subtitulo {
+            text-align: center;
+            color: #555;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🔍 Verificar Certificación</h1>
+    <p class="subtitulo">
+        Ingresá el folio del documento para verificar su autenticidad.
+    </p>
+
+    <div class="card">
+        <div class="form-group">
+            <label>Número de folio</label>
+            <input type="text" id="input-folio"
+                placeholder="Ej: DAIR-001-2026"
+                onkeydown="if(event.key==='Enter') verificar()" />
+        </div>
+        <button onclick="verificar()">Verificar autenticidad</button>
+
+        <div class="resultado" id="resultado"></div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token')
+
+        async function verificar() {
+            const folio = document.getElementById('input-folio').value.trim().toUpperCase()
+            const resultadoEl = document.getElementById('resultado')
+
+            if (!folio) {
+                resultadoEl.className = 'resultado invalido'
+                resultadoEl.style.display = 'block'
+                resultadoEl.innerHTML = '<h3>⚠️ Ingresá un número de folio</h3>'
+                return
+            }
+
+            resultadoEl.style.display = 'block'
+            resultadoEl.className = 'resultado'
+            resultadoEl.innerHTML = '<p>Verificando...</p>'
+
+            try {
+                const headers = { 'Content-Type': 'application/json' }
+                if (token) headers['Authorization'] = `Bearer ${token}`
+
+                const res = await fetch(`/api/certificaciones/${folio}`, { headers })
+
+                if (res.status === 404) {
+                    resultadoEl.className = 'resultado invalido'
+                    resultadoEl.innerHTML = `
+                        <h3>❌ Documento no válido</h3>
+                        <p>El folio <strong>${folio}</strong> no existe en los registros de la AIR.</p>
+                    `
+                    return
+                }
+
+                if (!res.ok) throw new Error('Error al verificar')
+
+                const cert = await res.json()
+                const fecha = new Date(cert.fecha_emision).toLocaleString('es-CR')
+
+                if (cert.estado === 'ANULADO') {
+                    resultadoEl.className = 'resultado invalido'
+                    resultadoEl.innerHTML = `
+                        <h3>⚠️ Documento anulado</h3>
+                        <p>Este folio fue anulado y ya no tiene validez legal.</p>
+                        <div class="dato-row">
+                            <label>Folio</label>
+                            <span>${cert.folio_unico}</span>
+                        </div>
+                    `
+                    return
+                }
+
+                resultadoEl.className = 'resultado valido'
+                resultadoEl.innerHTML = `
+                    <h3>✅ Documento válido</h3>
+                    <div class="dato-row">
+                        <label>Folio</label>
+                        <span>${cert.folio_unico}</span>
+                    </div>
+                    <div class="dato-row">
+                        <label>Asambleísta</label>
+                        <span>${cert.nombre_asambleista}</span>
+                    </div>
+                    <div class="dato-row">
+                        <label>Cédula</label>
+                        <span>${cert.cedula}</span>
+                    </div>
+                    <div class="dato-row">
+                        <label>Fecha de emisión</label>
+                        <span>${fecha}</span>
+                    </div>
+                    <div class="dato-row">
+                        <label>Emitido por</label>
+                        <span>${cert.emitido_por}</span>
+                    </div>
+                    <div class="dato-row">
+                        <label>Hash de seguridad</label>
+                        <span style="font-size:0.75rem;word-break:break-all;">
+                            ${cert.hash_seguridad}
+                        </span>
+                    </div>
+                `
+
+            } catch (error) {
+                resultadoEl.className = 'resultado invalido'
+                resultadoEl.innerHTML = `<h3>Error al verificar: ${error.message}</h3>`
+            }
+        }
+    </script>
+
+</body>
+</html>
