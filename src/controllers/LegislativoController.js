@@ -10,12 +10,123 @@ const Normativa = require('../models/Normativa')
 const Catalogo  = require('../models/Catalogo')
 const Votacion  = require('../models/Votacion')
 
+// =============================================================================
+// Módulo 3: Sesiones y Trámite Legislativo
+// Issue 11: Control de quórum y sesiones plenarias
+// =============================================================================
+
+const Sesion = require('../models/Sesion')
+
+// Devuelve todas las sesiones plenarias con conteo de presentes
 const obtenerSesiones = async (req, res) => {
-    res.json({ mensaje: 'LegislativoController - obtenerSesiones OK' })
+    try {
+        const sesiones = await Sesion.obtenerTodas()
+        res.json(sesiones)
+    } catch (error) {
+        console.error('Error al obtener sesiones:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
 }
 
+// Crea una nueva sesión plenaria
 const crearSesion = async (req, res) => {
-    res.json({ mensaje: 'LegislativoController - crearSesion OK' })
+    try {
+        const {
+            numero_sesion,
+            fecha,
+            quorum_requerido,
+            id_tipo_sesion,
+            id_tipo_modalidad,
+            link_acta
+        } = req.body
+
+        if (!numero_sesion || !fecha || !quorum_requerido || !id_tipo_sesion || !id_tipo_modalidad) {
+            return res.status(400).json({
+                error: 'Número de sesión, fecha, quórum, tipo y modalidad son obligatorios'
+            })
+        }
+
+        if (quorum_requerido < 1) {
+            return res.status(400).json({
+                error: 'El quórum requerido debe ser mayor a 0'
+            })
+        }
+
+        const nueva = await Sesion.crear(
+            numero_sesion,
+            fecha,
+            quorum_requerido,
+            id_tipo_sesion,
+            id_tipo_modalidad,
+            link_acta,
+            req.usuario.id
+        )
+
+        res.status(201).json(nueva)
+    } catch (error) {
+        console.error('Error al crear sesión:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
+// Devuelve el detalle de una sesión con su lista de asistencia
+const obtenerSesionPorId = async (req, res) => {
+    try {
+        const { id } = req.params
+        const sesion = await Sesion.obtenerPorId(id)
+
+        if (!sesion) {
+            return res.status(404).json({ error: 'Sesión no encontrada' })
+        }
+
+        res.json(sesion)
+    } catch (error) {
+        console.error('Error al obtener sesión:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
+// Registra la asistencia de los asambleístas en una sesión
+const registrarAsistencia = async (req, res) => {
+    try {
+        const { id } = req.params
+        const { asistencias } = req.body
+
+        if (!asistencias || !Array.isArray(asistencias) || asistencias.length === 0) {
+            return res.status(400).json({
+                error: 'Debe enviar al menos un registro de asistencia'
+            })
+        }
+
+        const sesion = await Sesion.obtenerPorId(id)
+        if (!sesion) {
+            return res.status(404).json({ error: 'Sesión no encontrada' })
+        }
+
+        const resultado = await Sesion.registrarAsistencia(id, asistencias, req.usuario.id)
+
+        // Después de registrar, devolvemos el estado del quórum actualizado
+        const quorum = await Sesion.validarQuorum(id)
+
+        res.json({
+            mensaje: `Asistencia registrada para ${resultado.registros} asambleístas`,
+            quorum
+        })
+    } catch (error) {
+        console.error('Error al registrar asistencia:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+
+// Devuelve los tipos de sesión y modalidades para los formularios
+const obtenerCatalogosSesion = async (req, res) => {
+    try {
+        const catalogos = await Sesion.obtenerCatalogos()
+        res.json(catalogos)
+    } catch (error) {
+        console.error('Error al obtener catálogos:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
 }
 
 // ── QUÓRUM ───────────────────────────────────────────────────────────────────
@@ -26,14 +137,14 @@ const validarQuorum = async (req, res) => {
     try {
         const { id } = req.params
 
-        if (!id || isNaN(id)) {
+        if (!id) {
             return res.status(400).json({ error: 'El id de la sesión es inválido o no fue enviado.' })
         }
 
-        const tieneQuorum = await Votacion.validarQuorumSesion(parseInt(id))
+        const tieneQuorum = await Votacion.validarQuorumSesion(id)
 
         res.status(200).json({
-            id_sesion: parseInt(id),
+            id_sesion: id,
             quorum_legal: tieneQuorum,
             mensaje: tieneQuorum
                 ? 'La sesión tiene quórum legal para sesionar.'
@@ -233,12 +344,25 @@ const obtenerTiposComision = async (req, res) => {
     }
 }
 
+// Issue 11: Estados de asistencia para el selector de la vista
+const obtenerEstadosAsistencia = async (req, res) => {
+    try {
+        const estados = await Catalogo.obtenerEstadosAsistencia()
+        res.json(estados)
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener estados de asistencia' })
+    }
+}
+
 module.exports = {
     obtenerReglamentos,
     obtenerArbol,
     obtenerSesiones,
     crearSesion,
+    obtenerSesionPorId,
     validarQuorum,
+    registrarAsistencia,
+    obtenerCatalogosSesion,
     registrarVoto,
     calcularResultado,
     obtenerVotosResolucion,
@@ -246,5 +370,6 @@ module.exports = {
     obtenerHistorialReformas,
     obtenerSectores,
     obtenerRolesComision,
-    obtenerTiposComision
+    obtenerTiposComision,
+    obtenerEstadosAsistencia
 }

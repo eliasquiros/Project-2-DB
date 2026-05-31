@@ -37,6 +37,7 @@ router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obten
 router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
 router.get('/catalogos/roles-comision', verificarToken, LegislativoController.obtenerRolesComision)
 router.get('/catalogos/tipos-comision', verificarToken, LegislativoController.obtenerTiposComision)
+router.get('/catalogos/estados-asistencia', verificarToken, LegislativoController.obtenerEstadosAsistencia)
 
 // ── REFORMAS ──────────────────────────────────────────────
 router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
@@ -45,8 +46,11 @@ router.get('/reformas/:id/historial', verificarToken, LegislativoController.obte
 
 // ── SESIONES ──────────────────────────────────────
 router.get('/sesiones', verificarToken, LegislativoController.obtenerSesiones)
+router.get('/sesiones/catalogos', verificarToken, LegislativoController.obtenerCatalogosSesion)
 router.post('/sesiones', verificarToken, LegislativoController.crearSesion)
+router.get('/sesiones/:id', verificarToken, LegislativoController.obtenerSesionPorId)
 router.get('/sesiones/:id/quorum', verificarToken, LegislativoController.validarQuorum)
+router.post('/sesiones/:id/asistencia', verificarToken, LegislativoController.registrarAsistencia)
 
 // ── VOTACIONES ────────────────────────────────────
 router.post('/votaciones', verificarToken, LegislativoController.registrarVoto)

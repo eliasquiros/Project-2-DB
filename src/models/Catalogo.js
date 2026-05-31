@@ -32,8 +32,19 @@ const obtenerTiposComision = async () => {
     return resultado.rows
 }
 
+// Issue 11: Estados de asistencia existentes para asignar en las sesiones
+const obtenerEstadosAsistencia = async () => {
+    const resultado = await pool.query(
+        `SELECT id_item, nombre FROM catalogo_maestro 
+         WHERE grupo_catalogo = 'ESTADO_ASISTENCIA' AND activo = true
+         ORDER BY nombre ASC`
+    )
+    return resultado.rows
+}
+
 module.exports = {
     obtenerSectores,
     obtenerRolesComision,
-    obtenerTiposComision
+    obtenerTiposComision,
+    obtenerEstadosAsistencia
 };
