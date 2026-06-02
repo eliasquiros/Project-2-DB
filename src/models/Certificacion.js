@@ -1,7 +1,8 @@
 // =============================================================================
 // Modelo: Certificacion.js
 // Módulo 5: Fe Pública y Certificación
-// Issue 17: Motor de Generación de Certificaciones Legales con Validación de Seguridad
+// Issue 17: Motor de Generación de Certificaciones Legales
+// Issue 5:  Historial de Certificaciones y Re-impresión con Snapshot
 // =============================================================================
 
 const { pool, ejecutarConAuditoria } = require('../config/db')
@@ -39,9 +40,7 @@ const obtenerDatosCertificacion = async (id_asambleista, fecha_inicio, fecha_fin
     const base = resultBase.rows[0]
 
     // Calcular asistencia en el período
-    const queryAsistencia = `
-        SELECT * FROM calcular_porcentaje_asistencia($1, $2, $3)
-    `
+    const queryAsistencia = `SELECT * FROM calcular_porcentaje_asistencia($1, $2, $3)`
     const resultAsistencia = await pool.query(queryAsistencia, [
         id_asambleista,
         fecha_inicio,
@@ -55,21 +54,20 @@ const obtenerDatosCertificacion = async (id_asambleista, fecha_inicio, fecha_fin
 
     // Obtener participaciones desde la vista consolidada
     const queryParticipaciones = `
-    SELECT DISTINCT ON (propuesta_titulo, tipo_participacion)
-        propuesta_titulo,
-        codigo_air,
-        etapa_propuesta,
-        estado_propuesta,
-        tipo_participacion,
-        fecha_sesion,
-        numero_sesion,
-        numero_resolucion
-    FROM v_hoja_vida_asambleista
-    WHERE asambleista_id = $1
-      AND (fecha_sesion IS NULL OR fecha_sesion BETWEEN $2::DATE AND $3::DATE)
-    ORDER BY propuesta_titulo, tipo_participacion, fecha_sesion NULLS LAST
+        SELECT DISTINCT ON (propuesta_titulo, tipo_participacion)
+            propuesta_titulo,
+            codigo_air,
+            etapa_propuesta,
+            estado_propuesta,
+            tipo_participacion,
+            fecha_sesion,
+            numero_sesion,
+            numero_resolucion
+        FROM v_hoja_vida_asambleista
+        WHERE asambleista_id = $1
+          AND (fecha_sesion IS NULL OR fecha_sesion BETWEEN $2::DATE AND $3::DATE)
+        ORDER BY propuesta_titulo, tipo_participacion, fecha_sesion NULLS LAST
     `
-    
     const resultParticipaciones = await pool.query(queryParticipaciones, [
         id_asambleista,
         fecha_inicio,
@@ -100,6 +98,8 @@ const obtenerDatosCertificacion = async (id_asambleista, fecha_inicio, fecha_fin
 
     return {
         ...base,
+        fecha_inicio,
+        fecha_fin,
         asistencia,
         participaciones
     }
@@ -107,26 +107,28 @@ const obtenerDatosCertificacion = async (id_asambleista, fecha_inicio, fecha_fin
 
 // Registrar una certificación emitida en la BD
 // El trigger tg_folio_secuencial asigna el folio automáticamente
-// Retorna el registro completo incluyendo el folio generado
-const registrarCertificacion = async (id_asambleista, hash_seguridad, id_usuario) => {
+// Guarda snapshot_json con el estado exacto de los datos al momento de emisión
+// Esto garantiza que una re-impresión futura muestre exactamente lo mismo que el original
+const registrarCertificacion = async (id_asambleista, hash_seguridad, id_usuario, datos) => {
     return ejecutarConAuditoria(id_usuario, async (client) => {
         const query = `
             INSERT INTO certificacion_emitida
-                (id_asambleista, folio_unico, hash_seguridad, usuario_secretaria, estado)
-            VALUES ($1, '', $2, $3, 'ACTIVO')
+                (id_asambleista, folio_unico, hash_seguridad, usuario_secretaria, estado, snapshot_json)
+            VALUES ($1, '', $2, $3, 'ACTIVO', $4)
             RETURNING *
         `
         const resultado = await client.query(query, [
             id_asambleista,
             hash_seguridad,
-            id_usuario
+            id_usuario,
+            JSON.stringify(datos)
         ])
         return resultado.rows[0]
     })
 }
 
 // Obtener una certificación por su folio único
-// Usado para verificación de autenticidad
+// Usado para verificación de autenticidad y re-impresión
 const obtenerPorFolio = async (folio) => {
     const query = `
         SELECT
@@ -135,20 +137,48 @@ const obtenerPorFolio = async (folio) => {
             ce.hash_seguridad,
             ce.fecha_emision,
             ce.estado,
-            a.nombre     AS nombre_asambleista,
+            ce.snapshot_json,
+            a.nombre       AS nombre_asambleista,
             a.cedula,
-            u.username   AS emitido_por
+            u.username     AS emitido_por
         FROM certificacion_emitida ce
-        JOIN asambleista a  ON a.asambleista_id  = ce.id_asambleista
-        JOIN sys_usuario u  ON u.id_usuario       = ce.usuario_secretaria
+        JOIN asambleista a ON a.asambleista_id  = ce.id_asambleista
+        JOIN sys_usuario u ON u.id_usuario       = ce.usuario_secretaria
         WHERE ce.folio_unico = $1
     `
     const resultado = await pool.query(query, [folio])
     return resultado.rows[0] || null
 }
 
-// Obtener el historial de certificaciones emitidas.
-// Usado en el dashboard de la Secretaría.
+// Obtener los datos originales de una certificación para re-impresión
+// Retorna el snapshot guardado al momento de emisión, NO los datos actuales
+// Esto garantiza que el PDF re-impreso sea idéntico al original
+const obtenerDatosParaReimpresion = async (folio) => {
+    const certificacion = await obtenerPorFolio(folio)
+
+    if (!certificacion) return null
+
+    // Si tiene snapshot, usar esos datos exactos
+    if (certificacion.snapshot_json) {
+        return {
+            ...certificacion.snapshot_json,
+            folio_unico: certificacion.folio_unico
+        }
+    }
+
+    // Si no tiene snapshot (certificaciones antiguas), retornar los datos básicos disponibles
+    return {
+        nombre:        certificacion.nombre_asambleista,
+        cedula:        certificacion.cedula,
+        folio_unico:   certificacion.folio_unico,
+        fecha_emision: certificacion.fecha_emision,
+        participaciones: [],
+        asistencia: { sesiones_asistidas: 0, sesiones_totales: 0, porcentaje: 0 }
+    }
+}
+
+// Obtener el historial de certificaciones emitidas
+// Usado en el dashboard de la Secretaría
 const obtenerHistorial = async () => {
     const query = `
         SELECT
@@ -156,9 +186,10 @@ const obtenerHistorial = async () => {
             ce.folio_unico,
             ce.fecha_emision,
             ce.estado,
-            a.nombre   AS nombre_asambleista,
+            a.nombre       AS nombre_asambleista,
+            a.asambleista_id,
             a.cedula,
-            u.username AS emitido_por
+            u.username     AS emitido_por
         FROM certificacion_emitida ce
         JOIN asambleista a ON a.asambleista_id = ce.id_asambleista
         JOIN sys_usuario u ON u.id_usuario      = ce.usuario_secretaria
@@ -183,5 +214,6 @@ module.exports = {
     obtenerPreviewCertificacion,
     registrarCertificacion,
     obtenerPorFolio,
+    obtenerDatosParaReimpresion,
     obtenerHistorial
 }

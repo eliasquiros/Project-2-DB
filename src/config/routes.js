@@ -62,6 +62,7 @@ router.get('/certificaciones', verificarToken, ReporteController.obtenerHistoria
 router.post('/certificaciones/preview', verificarToken, ReporteController.previewCertificacion)
 router.post('/certificaciones', verificarToken, ReporteController.generarCertificacion)
 router.get('/certificaciones/:folio', verificarToken, ReporteController.obtenerPorFolio)
+router.get('/certificaciones/:folio/reimprimir', verificarToken, ReporteController.reimprimirCertificacion)
 
 // ── AUDITORÍA ─────────────────────────────────────
 router.get('/auditoria/logs', verificarToken, ReporteController.obtenerLogs)
