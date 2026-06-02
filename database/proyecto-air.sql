@@ -1025,6 +1025,9 @@ $$ LANGUAGE plpgsql;
 ALTER TABLE certificacion_emitida
     ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
 
+ALTER TABLE certificacion_emitida
+    ADD COLUMN IF NOT EXISTS snapshot_json JSONB;
+
 -- Filtra solo los elementos donde no hay fecha de vigencia, no se puede ver un artículo derogado
 CREATE OR REPLACE VIEW v_reglamento_vigente AS
 SELECT
