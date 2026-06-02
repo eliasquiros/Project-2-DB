@@ -3,6 +3,7 @@
 // Módulo 5: Fe Pública y Certificación
 // Issue 17: Generador de Atestados
 // Issue 13: Bitácora de Auditoría y Trazabilidad
+// Issue 1: Implementación de Lógica de Foliado y Asignación de Consecutivo Legal
 // =============================================================================
 
 const Auditoria = require('../models/Auditoria')
@@ -62,6 +63,37 @@ const generarCertificacion = async (req, res) => {
         res.status(500).json({ error: 'Error interno al generar la certificación' })
     }
 }
+
+// =============================================================================
+// ── Foliado (Issue 1) ────────────────────────────────────
+// Devuelve los datos del asambleísta para previsualizar SIN asignar folio
+const previewCertificacion = async (req, res) => {
+    try {
+        const { id_asambleista, fecha_inicio, fecha_fin } = req.body
+
+        if (!id_asambleista || !fecha_inicio || !fecha_fin) {
+            return res.status(400).json({
+                error: 'El asambleísta, fecha inicio y fecha fin son obligatorios'
+            })
+        }
+
+        const datos = await Certificacion.obtenerPreviewCertificacion(
+            id_asambleista,
+            fecha_inicio,
+            fecha_fin
+        )
+
+        if (!datos) {
+            return res.status(404).json({ error: 'Asambleísta no encontrado' })
+        }
+
+        res.json(datos)
+    } catch (error) {
+        console.error('Error al generar preview:', error.message)
+        res.status(500).json({ error: 'Error interno del servidor' })
+    }
+}
+// =============================================================================
 
 // Verifica la autenticidad de una certificación por folio
 const obtenerPorFolio = async (req, res) => {
@@ -165,6 +197,7 @@ const obtenerTablasAuditadas = async (req, res) => {
 
 module.exports = {
     generarCertificacion,
+    previewCertificacion,
     obtenerPorFolio,
     obtenerHistorial,
     obtenerLogs,
