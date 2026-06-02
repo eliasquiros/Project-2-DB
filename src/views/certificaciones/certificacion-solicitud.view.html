@@ -349,19 +349,34 @@
 
         // ── RE-IMPRIMIR ───────────────────────────────────────────────────
         async function reimprimirCertificacion(id_asambleista, folio) {
-            // Para re-imprimir generamos una nueva consulta con fechas amplias
-            // En una mejora futura se guardaría el período original
             const confirmed = confirm(
                 `¿Re-imprimir la certificación ${folio}?\n\n` +
-                `Nota: Se generará un nuevo PDF con los datos actuales. ` +
-                `El folio original se mantiene en el historial.`
+                `Se generará el PDF con los datos exactos del momento de emisión original.`
             )
             if (!confirmed) return
 
-            document.getElementById('select-asambleista').value = id_asambleista
-            document.getElementById('input-fecha-inicio').value = '2020-01-01'
-            document.getElementById('input-fecha-fin').value = new Date().toISOString().split('T')[0]
-            generarCertificacion()
+            try {
+                const res = await fetch(`/api/certificaciones/${folio}/reimprimir`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) {
+                    const datos = await res.json()
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                const blob = await res.blob()
+                const url  = URL.createObjectURL(blob)
+                const a    = document.createElement('a')
+                a.href     = url
+                a.download = `REIMP-${folio}.pdf`
+                a.click()
+                URL.revokeObjectURL(url)
+
+            } catch (error) {
+                alert('Error al re-imprimir: ' + error.message)
+            }
         }
 
         // ── INICIALIZACIÓN ────────────────────────────────────────────────
