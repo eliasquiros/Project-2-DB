@@ -34,6 +34,7 @@ router.post('/comisiones/:id/sesiones', verificarToken, ComisionController.regis
 // ── NORMATIVA ─────────────────────────────────────
 router.get('/reglamentos',verificarToken, LegislativoController.obtenerReglamentos)
 router.get('/reglamentos/:id/arbol', verificarToken, LegislativoController.obtenerArbol)
+router.get('/elementos/:id/trazabilidad', verificarToken, LegislativoController.obtenerTrazabilidad)
 router.get('/catalogos/sectores', verificarToken, LegislativoController.obtenerSectores)
 router.get('/catalogos/roles-comision', verificarToken, LegislativoController.obtenerRolesComision)
 router.get('/catalogos/tipos-comision', verificarToken, LegislativoController.obtenerTiposComision)
