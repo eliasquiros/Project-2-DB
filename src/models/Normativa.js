@@ -60,11 +60,18 @@ const construirArbolAnidado = (filas) => {
     filas.forEach(fila => {
         if (fila.id_elemento_padre == null) {
             raices.push(mapa[fila.id_elemento])
-        } else {
+        } else if (mapa[fila.id_elemento_padre]) {
             mapa[fila.id_elemento_padre].hijos.push(mapa[fila.id_elemento])
         }
     })
-    return raices
+
+    const ordenarPorSecuenciaNormativa = (nodos) => {
+        nodos.sort((a, b) => (a.orden || 0) - (b.orden || 0))
+        nodos.forEach(nodo => ordenarPorSecuenciaNormativa(nodo.hijos))
+        return nodos
+    }
+
+    return ordenarPorSecuenciaNormativa(raices)
 }
 
 // Genera árbol recursivo completo de un reglamento
