@@ -114,9 +114,43 @@ const generarArbolRecursivo = async (id_reglamento_raiz) => {
     return construirArbolAnidado(resultado.rows)
 }
 
+const obtenerTrazabilidad = async (id_elemento) => {
+    const query = `
+        SELECT
+            -- Estado de vigencia del elemento actual
+            cm.nombre AS estado_vigencia,
+
+            -- Acuerdo de la reforma más reciente aplicada
+            r.numero_resolucion AS acuerdo,
+
+            -- Fecha exacta de la sesión donde se aprobó
+            s.fecha AS fecha_sesion,
+
+        FROM elemento_normativo e
+        JOIN catalogo_maestro cm
+            ON e.id_estado_vigencia = cm.id_item
+        LEFT JOIN reforma_aplicada ra
+            ON ra.id_elemento_normativo = e.id_elemento
+        LEFT JOIN resolucion r
+            ON ra.id_resolucion = r.id_resolucion
+        LEFT JOIN sesiones s
+            ON r.id_sesion = s.id_sesion
+        WHERE e.id_elemento = $1
+        ORDER BY ra.fecha_inicio_vigencia DESC
+        LIMIT 1
+    `
+    const resultado = await pool.query(query, [id_elemento])
+
+    if (resultado.rows.length === 0) {
+        throw new Error(`No se encontró el elemento normativo con id ${id_elemento}`)
+    }
+
+    return resultado.rows[0]
+}
 module.exports = {
     insertarReforma,
     obtenerHistorialReformas,
     obtenerReglamentos,
-    generarArbolRecursivo
+    generarArbolRecursivo,
+    obtenerTrazabilidad
 };
