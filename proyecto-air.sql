@@ -1224,4 +1224,90 @@ BEGIN
     WHERE hv.asambleista_id = p_id_asambleista
     ORDER BY hv.fecha_sesion NULLS LAST;
 END;
+-- ============================================================
+-- DATOS SEMILLA — elemento_normativo
+-- Prueba Issue #10 y #16 — Árbol recursivo y trazabilidad
+-- Niveles: 10=Título 11=Capítulo 12=Artículo 13=Inciso
+-- Estado vigente: 25
+-- ============================================================
+
+-- ============================================================
+-- REGLAMENTO 1: Estatuto Orgánico del ITCR (id=1)
+-- ============================================================
+
+-- TÍTULO I
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, NULL, 10, 'Título I', 'De la Naturaleza y Fines del Instituto', 1, '2000-01-01', 25);
+-- id = 1
+
+-- TÍTULO II
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, NULL, 10, 'Título II', 'De la Estructura Orgánica', 2, '2000-01-01', 25);
+-- id = 2
+
+-- ── CAPÍTULO 1 (hijo de Título I → id 1)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 1, 11, 'Capítulo I', 'Disposiciones Generales', 1, '2000-01-01', 25);
+-- id = 3
+
+-- ── CAPÍTULO 2 (hijo de Título I → id 1)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 1, 11, 'Capítulo II', 'De los Principios Institucionales', 2, '2000-01-01', 25);
+-- id = 4
+
+-- ──── ARTÍCULO 1 (hijo de Capítulo I → id 3)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 3, 12, 'Artículo 1', 'El Instituto Tecnológico de Costa Rica es una institución nacional autónoma de educación superior universitaria, dedicada a la docencia, la investigación y la extensión de la tecnología y las ciencias conexas para el desarrollo de Costa Rica. Fue creado mediante Ley N.° 4777 del 10 de junio de 1971 y goza de independencia para el desempeño de sus funciones y de plena capacidad jurídica para adquirir derechos y contraer obligaciones.', 1, '2000-01-01', 25);
+-- id = 5
+
+-- ──── ARTÍCULO 2 (hijo de Capítulo I → id 3)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 3, 12, 'Artículo 2', 'Son fines del Instituto Tecnológico de Costa Rica contribuir al desarrollo integral del país, mediante la formación de recursos humanos, la investigación y la extensión; manteniendo el liderazgo científico, tecnológico y técnico, la creatividad y el espíritu emprendedor del personal y de los estudiantes, para que constituyan fuerzas activas del desarrollo económico, social y ambiental sostenible del país.', 2, '2000-01-01', 25);
+-- id = 6
+
+-- ────── INCISO a) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'a)', 'Formar profesionales en el campo tecnológico que contribuyan al desarrollo de Costa Rica, mediante una sólida preparación científica, tecnológica y humanística.', 1, '2000-01-01', 25);
+-- id = 7
+
+-- ────── INCISO b) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'b)', 'Generar, adaptar e incorporar en forma sistemática y continua la tecnología necesaria para el desarrollo nacional, con énfasis en la pequeña y mediana empresa.', 2, '2000-01-01', 25);
+-- id = 8
+
+-- ────── INCISO c) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'c)', 'Contribuir al mejoramiento de la calidad de vida del pueblo costarricense mediante la proyección de sus actividades a la atención y solución de los problemas prioritarios del país, a fin de edificar una sociedad más justa.', 3, '2000-01-01', 25);
+-- id = 9
+
+-- ──── ARTÍCULO 3 (hijo de Capítulo II → id 4)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 4, 12, 'Artículo 3', 'El Instituto Tecnológico de Costa Rica se fundamenta en los siguientes principios: la búsqueda permanente de la excelencia académica; el compromiso con la democracia, la libertad, la justicia social y la paz; el respeto a la dignidad humana y a la diversidad cultural; el apego irrestricto a la ética y a la moral; la transparencia y la rendición de cuentas como práctica institucional permanente.', 1, '2000-01-01', 25);
+-- id = 10
+
+-- ────── INCISO a) (hijo de Artículo 3 → id 10)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 10, 13, 'a)', 'Excelencia académica: el Instituto buscará permanentemente los más altos estándares de calidad en todas sus actividades de docencia, investigación y extensión.', 1, '2000-01-01', 25);
+-- id = 11
+
+-- ────── INCISO b) (hijo de Artículo 3 → id 10)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 10, 13, 'b)', 'Compromiso social: el Instituto orientará sus actividades hacia la atención de las necesidades y problemas de la sociedad costarricense, con especial atención a los sectores más vulnerables de la población.', 2, '2000-01-01', 25);
+-- id = 12
+
+-- ── CAPÍTULO 1 (hijo de Título II → id 2)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 2, 11, 'Capítulo I', 'De los Órganos de Gobierno', 1, '2000-01-01', 25);
+-- id = 13
+
+-- ──── ARTÍCULO 4 (hijo de Capítulo I Título II → id 13)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 13, 12, 'Artículo 4', 'La estructura orgánica del Instituto Tecnológico de Costa Rica estará conformada por los siguientes órganos superiores de gobierno: la Asamblea Institucional Representativa, el Consejo Institucional, la Rectoría, las Vicerrectorías, los Centros Académicos y las unidades académicas y administrativas que se creen por reglamento interno.', 1, '2000-01-01', 25);
+-- id = 14
+
+-- ──── ARTÍCULO 5 (hijo de Capítulo I Título II → id 13)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 13, 12, 'Artículo 5', 'La Asamblea Institucional Representativa es el órgano superior de deliberación y decisión del Instituto. Le corresponde conocer y resolver los asuntos de mayor trascendencia institucional, entre ellos la reforma al Estatuto Orgánico, la aprobación de las políticas generales y la elección de las autoridades superiores del Instituto.', 2, '2000-01-01', 25);
+-- id = 15
+
 $$ LANGUAGE plpgsql;
