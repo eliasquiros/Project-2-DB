@@ -1122,80 +1122,53 @@ ORDER BY total DESC;
 -- Issue 17: Motor de Generación de Certificaciones Legales
 
 -- Vista consolidada para el motor de certificaciones
-CREATE OR REPLACE VIEW v_hoja_vida_asambleista AS
-
--- Parte 1: participaciones como proponente
-SELECT
-    a.asambleista_id,
-    a.nombre,
-    a.cedula,
-    a.correo_institucional,
-    n.id_nombramiento,
-    n.fecha_inicio           AS nombramiento_inicio,
-    n.fecha_fin              AS nombramiento_fin,
-    n.estado                 AS nombramiento_estado,
-    cm_sec.nombre            AS sector,
-    cm_pue.nombre            AS puesto,
-    p.id_propuesta,
-    p.titulo                 AS propuesta_titulo,
-    p.codigo_air,
-    cm_et.nombre             AS etapa_propuesta,
-    cm_es.nombre             AS estado_propuesta,
-    s.id_sesion,
-    s.numero_sesion,
-    s.fecha                  AS fecha_sesion,
-    res.numero_resolucion,
-    res.fecha_emision        AS fecha_resolucion,
-    'PROPONENTE'::VARCHAR    AS tipo_participacion
+-- Fix de vista para Issue #2 - LEFT JOIN
+CREATE VIEW v_hoja_vida_asambleista AS
+SELECT 
+    a.asambleista_id, a.nombre, a.cedula, a.correo_institucional,
+    n.id_nombramiento, n.fecha_inicio AS nombramiento_inicio, n.fecha_fin AS nombramiento_fin,
+    n.estado AS nombramiento_estado,
+    cm_sec.nombre AS sector, cm_pue.nombre AS puesto,
+    p.id_propuesta, p.titulo AS propuesta_titulo, p.codigo_air,
+    cm_et.nombre AS etapa_propuesta, cm_es.nombre AS estado_propuesta,
+    s.id_sesion, s.numero_sesion, s.fecha AS fecha_sesion,
+    res.numero_resolucion, res.fecha_emision AS fecha_resolucion,
+    'PROPONENTE' AS tipo_participacion
 FROM asambleista a
-JOIN nombramiento         n    ON n.asambleista_id   = a.asambleista_id
-JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item     = n.sector_id
-JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item     = n.id_puesto
-JOIN proponente_propuesta pp   ON pp.id_asambleista  = a.asambleista_id
-JOIN propuesta            p    ON p.id_propuesta     = pp.id_propuesta
-JOIN catalogo_maestro  cm_et   ON cm_et.id_item      = p.id_etapa_propuesta
-JOIN catalogo_maestro  cm_es   ON cm_es.id_item      = p.id_estado_propuesta
-LEFT JOIN punto_agenda    pa   ON pa.id_propuesta    = p.id_propuesta
-LEFT JOIN sesiones        s    ON s.id_sesion        = pa.id_sesion
-LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda
+JOIN nombramiento n ON n.asambleista_id = a.asambleista_id
+LEFT JOIN catalogo_maestro cm_sec ON cm_sec.id_item = n.sector_id
+LEFT JOIN catalogo_maestro cm_pue ON cm_pue.id_item = n.id_puesto
+JOIN proponente_propuesta pp ON pp.id_asambleista = a.asambleista_id
+JOIN propuesta p ON p.id_propuesta = pp.id_propuesta
+JOIN catalogo_maestro cm_et ON cm_et.id_item = p.id_etapa_propuesta
+JOIN catalogo_maestro cm_es ON cm_es.id_item = p.id_estado_propuesta
+LEFT JOIN punto_agenda pa ON pa.id_propuesta = p.id_propuesta
+LEFT JOIN sesiones s ON s.id_sesion = pa.id_sesion
+LEFT JOIN resolucion res ON res.id_punto_agenda = pa.id_punto_agenda
 
 UNION ALL
 
--- Parte 2: participaciones como integrante de comisión
-SELECT
-    a.asambleista_id,
-    a.nombre,
-    a.cedula,
-    a.correo_institucional,
-    n.id_nombramiento,
-    n.fecha_inicio,
-    n.fecha_fin,
-    n.estado,
-    cm_sec.nombre,
-    cm_pue.nombre,
-    p.id_propuesta,
-    p.titulo,
-    p.codigo_air,
-    cm_et.nombre,
-    cm_es.nombre,
-    s.id_sesion,
-    s.numero_sesion,
-    s.fecha,
-    res.numero_resolucion,
-    res.fecha_emision,
-    'COMISION'::VARCHAR
+SELECT 
+    a.asambleista_id, a.nombre, a.cedula, a.correo_institucional,
+    n.id_nombramiento, n.fecha_inicio, n.fecha_fin, n.estado,
+    cm_sec.nombre, cm_pue.nombre,
+    p.id_propuesta, p.titulo, p.codigo_air,
+    cm_et.nombre, cm_es.nombre,
+    s.id_sesion, s.numero_sesion, s.fecha,
+    res.numero_resolucion, res.fecha_emision,
+    'COMISION' AS tipo_participacion
 FROM asambleista a
-JOIN nombramiento         n    ON n.asambleista_id    = a.asambleista_id
-JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item      = n.sector_id
-JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item      = n.id_puesto
-JOIN integrante_comision ic    ON ic.id_asambleista   = a.asambleista_id
-JOIN propositos_comision pcm   ON pcm.id_comision     = ic.id_comision
-JOIN propuesta            p    ON p.id_propuesta      = pcm.id_propuesta
-JOIN catalogo_maestro  cm_et   ON cm_et.id_item       = p.id_etapa_propuesta
-JOIN catalogo_maestro  cm_es   ON cm_es.id_item       = p.id_estado_propuesta
-LEFT JOIN punto_agenda    pa   ON pa.id_propuesta     = p.id_propuesta
-LEFT JOIN sesiones        s    ON s.id_sesion         = pa.id_sesion
-LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda;
+JOIN nombramiento n ON n.asambleista_id = a.asambleista_id
+LEFT JOIN catalogo_maestro cm_sec ON cm_sec.id_item = n.sector_id
+LEFT JOIN catalogo_maestro cm_pue ON cm_pue.id_item = n.id_puesto
+JOIN integrante_comision ic ON ic.id_asambleista = a.asambleista_id
+JOIN propositos_comision pcm ON pcm.id_comision = ic.id_comision
+JOIN propuesta p ON p.id_propuesta = pcm.id_propuesta
+JOIN catalogo_maestro cm_et ON cm_et.id_item = p.id_etapa_propuesta
+JOIN catalogo_maestro cm_es ON cm_es.id_item = p.id_estado_propuesta
+LEFT JOIN punto_agenda pa ON pa.id_propuesta = p.id_propuesta
+LEFT JOIN sesiones s ON s.id_sesion = pa.id_sesion
+LEFT JOIN resolucion res ON res.id_punto_agenda = pa.id_punto_agenda;
 
 -- Función que la consume
 CREATE OR REPLACE FUNCTION obtener_historial_atestados(p_id_asambleista INT)
