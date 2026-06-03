@@ -315,6 +315,28 @@ const obtenerArbol = async (req, res) => {
         res.status(500).json({ error: error.message })
     }
 }
+// Obtener trazabilidad de un elemento normativo
+// Issue #16 — Visor de Vigencia
+const obtenerTrazabilidad = async (req, res) => {
+    try {
+        const { id } = req.params
+
+        if (!id || isNaN(id)) {
+            return res.status(400).json({ 
+                error: 'El id del elemento normativo es inválido o no fue enviado' 
+            })
+        }
+
+        const trazabilidad = await Normativa.obtenerTrazabilidad(parseInt(id))
+        res.json(trazabilidad)
+
+    } catch (error) {
+        if (error.message.includes('No se encontró el elemento')) {
+            return res.status(404).json({ error: error.message })
+        }
+        res.status(500).json({ error: error.message })
+    }
+}
 
 const obtenerSectores = async (req, res) => {
     try {
@@ -371,5 +393,6 @@ module.exports = {
     obtenerSectores,
     obtenerRolesComision,
     obtenerTiposComision,
-    obtenerEstadosAsistencia
+    obtenerEstadosAsistencia,
+    obtenerTrazabilidad
 }
