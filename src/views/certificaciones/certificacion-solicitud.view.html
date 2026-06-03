@@ -61,16 +61,10 @@
             border: 1px solid #1a1a2e;
         }
         button.secundario:hover { background: #f0f0f0; }
-        button.verde {
-            background: #155724;
-        }
+        button.verde { background: #155724; }
         button.verde:hover { background: #1e7e34; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        table { width: 100%; border-collapse: collapse; }
         th {
             background: #1a1a2e;
             color: white;
@@ -78,31 +72,18 @@
             text-align: left;
             font-size: 0.9rem;
         }
-
         td {
             padding: 0.8rem 1rem;
             border-bottom: 1px solid #eee;
             font-size: 0.9rem;
         }
-
         tr:last-child td { border-bottom: none; }
 
-        .badge {
-            padding: 0.2rem 0.6rem;
-            border-radius: 10px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-
+        .badge { padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.8rem; font-weight: bold; }
         .badge-activo  { background: #d4edda; color: #155724; }
         .badge-anulado { background: #f8d7da; color: #721c24; }
 
-        .mensaje-estado {
-            text-align: center;
-            padding: 2rem;
-            color: #999;
-        }
-
+        .mensaje-estado { text-align: center; padding: 2rem; color: #999; }
         .error { color: #c0392b; font-size: 0.85rem; }
 
         .info-asambleista {
@@ -110,29 +91,89 @@
             border-left: 4px solid #2E5FA3;
             padding: 1rem 1.5rem;
             border-radius: 4px;
-            margin-bottom: 1rem;
+            margin-top: 1rem;
             display: none;
         }
-
         .info-asambleista.visible { display: block; }
 
-        .spinner {
+        .spinner { display: none; color: #555; font-size: 0.9rem; margin-top: 0.5rem; }
+        .spinner.visible { display: block; }
+
+        /* ── PANEL DE PREVIEW ── */
+        .preview-panel {
             display: none;
-            color: #555;
+            border: 2px solid #2E5FA3;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            background: #f8fbff;
+        }
+        .preview-panel.visible { display: block; }
+
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .preview-header h3 { margin: 0; color: #1a1a2e; }
+
+        .preview-seccion { margin-bottom: 1rem; }
+        .preview-seccion h4 {
+            color: #2E5FA3;
             font-size: 0.9rem;
-            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
-        .spinner.visible { display: block; }
+        .preview-dato {
+            display: flex;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            padding: 0.3rem 0;
+            border-bottom: 1px solid #e0e8f0;
+        }
+        .preview-dato:last-child { border-bottom: none; }
+        .preview-dato label { color: #555; min-width: 160px; }
+        .preview-dato span { font-weight: bold; color: #1a1a2e; }
+
+        .preview-participacion {
+            background: white;
+            border: 1px solid #d0e4f5;
+            border-radius: 4px;
+            padding: 0.8rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.88rem;
+        }
+        .preview-participacion .titulo { font-weight: bold; color: #1a1a2e; margin-bottom: 0.3rem; }
+        .preview-participacion .detalle { color: #555; }
+
+        .aviso-folio {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            padding: 0.8rem 1rem;
+            font-size: 0.85rem;
+            color: #856404;
+            margin-bottom: 1rem;
+        }
+
+        .acciones-preview {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
     </style>
 </head>
 <body>
 
     <h1>📜 Gestión de Certificaciones</h1>
 
-    <!-- ── FORMULARIO DE GENERACIÓN ── -->
+    <!-- ── FORMULARIO ── -->
     <div class="card">
-        <h2 style="margin-top:0; border:none;">Generar nueva certificación</h2>
+        <h2 style="margin-top:0; border:none;">Nueva certificación</h2>
 
         <div class="form-row">
             <div class="form-group">
@@ -141,31 +182,64 @@
                     <option value="">-- Seleccione --</option>
                 </select>
             </div>
-
             <div class="form-group">
                 <label>Fecha inicio *</label>
                 <input type="date" id="input-fecha-inicio" />
             </div>
-
             <div class="form-group">
                 <label>Fecha fin *</label>
                 <input type="date" id="input-fecha-fin" />
             </div>
-
             <div class="form-group">
                 <label>&nbsp;</label>
-                <button onclick="generarCertificacion()" id="btn-generar">
-                    Generar PDF
+                <button onclick="solicitarPreview()" id="btn-preview">
+                    👁 Previsualizar
                 </button>
             </div>
         </div>
 
         <div class="info-asambleista" id="info-asambleista"></div>
-        <div class="spinner" id="spinner">⏳ Generando certificación, por favor espere...</div>
+        <div class="spinner" id="spinner-preview">⏳ Cargando datos del asambleísta...</div>
         <p class="error" id="error-form" style="display:none;"></p>
+
+        <!-- ── PANEL DE PREVISUALIZACIÓN (Issue 1) ── -->
+        <div class="preview-panel" id="preview-panel">
+            <div class="aviso-folio">
+                ⚠️ <strong>Previsualización:</strong> Este es un borrador. El folio DAIR será
+                asignado únicamente al confirmar la emisión. Revisá los datos antes de continuar.
+            </div>
+
+            <div class="preview-header">
+                <h3>📋 Datos de la certificación</h3>
+            </div>
+
+            <div class="preview-seccion">
+                <h4>I. Representación</h4>
+                <div id="preview-datos-asam"></div>
+            </div>
+
+            <div class="preview-seccion">
+                <h4>II. Participación en sesiones plenarias</h4>
+                <div id="preview-asistencia"></div>
+            </div>
+
+            <div class="preview-seccion">
+                <h4>III. Participación en propuestas y comisiones</h4>
+                <div id="preview-participaciones"></div>
+            </div>
+
+            <div class="acciones-preview">
+                <button class="secundario" onclick="cancelarPreview()">✕ Cancelar</button>
+                <button class="verde" onclick="confirmarEmision()" id="btn-confirmar">
+                    ✓ Confirmar y generar PDF
+                </button>
+            </div>
+
+            <div class="spinner" id="spinner-emision">⏳ Generando certificación oficial...</div>
+        </div>
     </div>
 
-    <!-- ── HISTORIAL DE CERTIFICACIONES ── -->
+    <!-- ── HISTORIAL ── -->
     <h2>Historial de certificaciones emitidas</h2>
     <div class="card">
         <table>
@@ -181,15 +255,14 @@
                 </tr>
             </thead>
             <tbody id="cuerpo-historial">
-                <tr>
-                    <td colspan="7" class="mensaje-estado">Cargando historial...</td>
-                </tr>
+                <tr><td colspan="7" class="mensaje-estado">Cargando historial...</td></tr>
             </tbody>
         </table>
     </div>
 
     <script>
         const token = localStorage.getItem('token')
+        let datosPreview = null
 
         // ── CARGAR ASAMBLEÍSTAS ───────────────────────────────────────────
         async function cargarAsambleistas() {
@@ -202,15 +275,17 @@
 
                 asambleistas.forEach(a => {
                     select.innerHTML +=
-                        `<option value="${a.asambleista_id}" data-nombre="${a.nombre}" data-cedula="${a.cedula}">
+                        `<option value="${a.asambleista_id}"
+                            data-nombre="${a.nombre}"
+                            data-cedula="${a.cedula}">
                             ${a.nombre} (${a.cedula})
                         </option>`
                 })
 
-                // Mostrar info del asambleísta seleccionado
                 select.addEventListener('change', function () {
                     const opt = this.options[this.selectedIndex]
                     const info = document.getElementById('info-asambleista')
+                    cancelarPreview()
                     if (this.value) {
                         info.innerHTML =
                             `<strong>${opt.dataset.nombre}</strong> — Cédula: ${opt.dataset.cedula}`
@@ -219,20 +294,20 @@
                         info.classList.remove('visible')
                     }
                 })
-
             } catch (error) {
                 console.error('Error al cargar asambleístas:', error.message)
             }
         }
 
-        // ── GENERAR CERTIFICACIÓN ─────────────────────────────────────────
-        async function generarCertificacion() {
+        // ── SOLICITAR PREVIEW (Issue 1) ───────────────────────────────────
+        async function solicitarPreview() {
             const id_asambleista = document.getElementById('select-asambleista').value
             const fecha_inicio   = document.getElementById('input-fecha-inicio').value
             const fecha_fin      = document.getElementById('input-fecha-fin').value
             const errorEl        = document.getElementById('error-form')
 
             errorEl.style.display = 'none'
+            cancelarPreview()
 
             if (!id_asambleista || !fecha_inicio || !fecha_fin) {
                 errorEl.textContent = 'Todos los campos son obligatorios'
@@ -246,12 +321,11 @@
                 return
             }
 
-            // Mostrar spinner y deshabilitar botón
-            document.getElementById('spinner').classList.add('visible')
-            document.getElementById('btn-generar').disabled = true
+            document.getElementById('spinner-preview').classList.add('visible')
+            document.getElementById('btn-preview').disabled = true
 
             try {
-                const res = await fetch('/api/certificaciones', {
+                const res = await fetch('/api/certificaciones/preview', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -265,31 +339,152 @@
                     throw new Error(datos.error)
                 }
 
-                // Descargar el PDF automáticamente
-                const blob = await res.blob()
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
+                datosPreview = await res.json()
+                datosPreview._fecha_inicio = fecha_inicio
+                datosPreview._fecha_fin    = fecha_fin
 
-                // Obtener el folio del header Content-Disposition
-                const disposition = res.headers.get('Content-Disposition')
-                const filename = disposition
-                    ? disposition.split('filename=')[1].replace(/"/g, '')
-                    : 'certificacion.pdf'
-
-                a.href = url
-                a.download = filename
-                a.click()
-                URL.revokeObjectURL(url)
-
-                // Recargar historial
-                cargarHistorial()
+                renderizarPreview(datosPreview)
+                document.getElementById('preview-panel').classList.add('visible')
 
             } catch (error) {
                 errorEl.textContent = 'Error: ' + error.message
                 errorEl.style.display = 'block'
             } finally {
-                document.getElementById('spinner').classList.remove('visible')
-                document.getElementById('btn-generar').disabled = false
+                document.getElementById('spinner-preview').classList.remove('visible')
+                document.getElementById('btn-preview').disabled = false
+            }
+        }
+
+        // ── RENDERIZAR PREVIEW ────────────────────────────────────────────
+        function renderizarPreview(datos) {
+            const fechaInicio = datos.nombramiento_inicio
+                ? new Date(datos.nombramiento_inicio).toLocaleDateString('es-CR')
+                : 'No especificada'
+            const fechaFin = datos.nombramiento_fin
+                ? new Date(datos.nombramiento_fin).toLocaleDateString('es-CR')
+                : 'Vigente'
+
+            document.getElementById('preview-datos-asam').innerHTML = `
+                <div class="preview-dato">
+                    <label>Nombre completo</label>
+                    <span>${datos.nombre}</span>
+                </div>
+                <div class="preview-dato">
+                    <label>Cédula</label>
+                    <span>${datos.cedula}</span>
+                </div>
+                <div class="preview-dato">
+                    <label>Sector</label>
+                    <span>${datos.sector || 'No especificado'}</span>
+                </div>
+                <div class="preview-dato">
+                    <label>Puesto</label>
+                    <span>${datos.puesto || 'No especificado'}</span>
+                </div>
+                <div class="preview-dato">
+                    <label>Período</label>
+                    <span>${fechaInicio} — ${fechaFin}</span>
+                </div>
+                <div class="preview-dato">
+                    <label>Estado nombramiento</label>
+                    <span>${datos.nombramiento_estado || 'ACTIVO'}</span>
+                </div>
+            `
+
+            const asist = datos.asistencia
+            document.getElementById('preview-asistencia').innerHTML =
+                asist && asist.sesiones_totales > 0
+                    ? `<div class="preview-dato">
+                           <label>Sesiones asistidas</label>
+                           <span>${asist.sesiones_asistidas} de ${asist.sesiones_totales} (${asist.porcentaje}%)</span>
+                       </div>`
+                    : `<p style="color:#999;font-size:0.9rem;">
+                           No se registran sesiones plenarias en el período indicado.
+                       </p>`
+
+            const partEl = document.getElementById('preview-participaciones')
+            if (!datos.participaciones || datos.participaciones.length === 0) {
+                partEl.innerHTML =
+                    `<p style="color:#999;font-size:0.9rem;">
+                         No se registran participaciones en el período indicado.
+                     </p>`
+            } else {
+                partEl.innerHTML = ''
+                datos.participaciones.forEach((p, i) => {
+                    partEl.innerHTML += `
+                        <div class="preview-participacion">
+                            <div class="titulo">
+                                ${i + 1}. ${p.propuesta_titulo || 'Sin título'}
+                                ${p.codigo_air ? `(${p.codigo_air})` : ''}
+                            </div>
+                            <div class="detalle">
+                                Tipo: ${p.tipo_participacion} |
+                                Etapa: ${p.etapa_propuesta || '—'} |
+                                Estado: ${p.estado_propuesta || '—'}
+                                ${p.numero_resolucion ? `| Resolución: ${p.numero_resolucion}` : ''}
+                            </div>
+                        </div>`
+                })
+            }
+        }
+
+        // ── CANCELAR PREVIEW ──────────────────────────────────────────────
+        function cancelarPreview() {
+            datosPreview = null
+            document.getElementById('preview-panel').classList.remove('visible')
+        }
+
+        // ── CONFIRMAR EMISIÓN ─────────────────────────────────────────────
+        async function confirmarEmision() {
+            if (!datosPreview) return
+
+            document.getElementById('spinner-emision').classList.add('visible')
+            document.getElementById('btn-confirmar').disabled = true
+
+            try {
+                const res = await fetch('/api/certificaciones', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id_asambleista: datosPreview.asambleista_id,
+                        fecha_inicio:   datosPreview._fecha_inicio,
+                        fecha_fin:      datosPreview._fecha_fin
+                    })
+                })
+
+                if (!res.ok) {
+                    const datos = await res.json()
+                    throw new Error(datos.error)
+                }
+
+                const blob = await res.blob()
+                const url  = URL.createObjectURL(blob)
+                const a    = document.createElement('a')
+                const disposition = res.headers.get('Content-Disposition')
+                const filename = disposition
+                    ? disposition.split('filename=')[1].replace(/"/g, '')
+                    : 'certificacion.pdf'
+
+                a.href     = url
+                a.download = filename
+                a.click()
+                URL.revokeObjectURL(url)
+
+                cancelarPreview()
+                document.getElementById('select-asambleista').value = ''
+                document.getElementById('input-fecha-inicio').value = ''
+                document.getElementById('input-fecha-fin').value    = ''
+                document.getElementById('info-asambleista').classList.remove('visible')
+                cargarHistorial()
+
+            } catch (error) {
+                alert('Error al emitir: ' + error.message)
+            } finally {
+                document.getElementById('spinner-emision').classList.remove('visible')
+                document.getElementById('btn-confirmar').disabled = false
             }
         }
 
@@ -299,7 +494,6 @@
                 const res = await fetch('/api/certificaciones', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
-
                 const historial = await res.json()
                 const cuerpo = document.getElementById('cuerpo-historial')
 
@@ -329,14 +523,14 @@
                             <td>${c.emitido_por}</td>
                             <td>${badge}</td>
                             <td>
-                                <button class="secundario" style="padding:0.3rem 0.8rem;font-size:0.85rem;"
+                                <button class="secundario"
+                                    style="padding:0.3rem 0.8rem;font-size:0.85rem;"
                                     onclick="reimprimirCertificacion('${c.id_asambleista}','${c.folio_unico}')">
                                     Re-imprimir
                                 </button>
                             </td>
                         </tr>`
                 })
-
             } catch (error) {
                 document.getElementById('cuerpo-historial').innerHTML = `
                     <tr>
@@ -347,7 +541,7 @@
             }
         }
 
-        // ── RE-IMPRIMIR ───────────────────────────────────────────────────
+        // ── RE-IMPRIMIR (Issue 5) ──────────────────────────────────
         async function reimprimirCertificacion(id_asambleista, folio) {
             const confirmed = confirm(
                 `¿Re-imprimir la certificación ${folio}?\n\n` +

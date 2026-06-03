@@ -200,8 +200,18 @@ const obtenerHistorial = async () => {
     return resultado.rows
 }
 
+// -----------------------------------------------------------------------------
+// Issue 1: Implementación de Lógica de Foliado y Asignación de Consecutivo Legal
+// Obtener preview de datos para certificación sin registrar ni asignar folio
+// Se usa para que la Secretaría revise antes de confirmar la emisión
+// -----------------------------------------------------------------------------
+const obtenerPreviewCertificacion = async (id_asambleista, fecha_inicio, fecha_fin) => {
+    return obtenerDatosCertificacion(id_asambleista, fecha_inicio, fecha_fin)
+}
+
 module.exports = {
     obtenerDatosCertificacion,
+    obtenerPreviewCertificacion,
     registrarCertificacion,
     obtenerPorFolio,
     obtenerDatosParaReimpresion,
