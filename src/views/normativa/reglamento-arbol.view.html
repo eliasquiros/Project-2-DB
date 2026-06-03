@@ -134,6 +134,9 @@
             flex-direction: column;
         }
 
+        /* Hacemos el contenedor del visor relativo para posicionar la pestaña de detalles */
+        .panel-visor { position: relative; }
+
         .panel-arbol {
             border-right: 0;
         }
@@ -146,6 +149,9 @@
             font-weight: 700;
             color: #1f2d3d;
             text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .arbol-scroll,
@@ -275,6 +281,66 @@
             font-size: 0.82rem;
         }
 
+        /* Botón compacto específico para 'detalles articulo' */
+        .btn-detalles {
+            padding: 0.24rem 0.6rem;
+            font-size: 0.78rem;
+            border-radius: 6px;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+        }
+
+        /* Efecto hover/focus para hacerlo interactivo */
+        .btn-detalles:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 14px rgba(26,111,186,0.12);
+        }
+
+        /* Pestaña que aparece dentro del panel-visor con información de trazabilidad */
+        .pestana-detalles {
+            position: absolute;
+            top: 44px; /* a la altura del encabezado, separada */
+            right: 12px;
+            width: 320px;
+            max-width: calc(100% - 24px);
+            background: var(--color-blanco);
+            border: 1px solid var(--color-borde);
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(9,30,66,0.12);
+            padding: 0.75rem;
+            transform-origin: top right;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(-6px) scale(0.99);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            z-index: 40;
+        }
+
+        .pestana-detalles.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0) scale(1);
+        }
+
+        .pestana-detalles .pestana-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .pestana-detalles .pestana-campo {
+            font-size: 0.88rem;
+            color: var(--color-texto);
+            margin-bottom: 0.35rem;
+        }
+
+        .pestana-detalles .pestana-campo b {
+            color: var(--color-texto-suave);
+            margin-right: 0.25rem;
+            font-weight: 600;
+        }
+
         @media (max-width: 820px) {
             .explorador-shell {
                 height: auto;
@@ -355,7 +421,28 @@
                 </aside>
 
                 <section class="panel-visor">
-                    <div class="panel-encabezado">Visor de Articulo Seleccionado</div>
+                    <!-- Encabezado del visor + botón para mostrar la pestaña de detalles -->
+                    <div class="panel-encabezado">
+                        <span class="encabezado-texto">Visor de Articulo Seleccionado</span>
+                        <!-- Botón pequeño y visible que solicita trazabilidad del elemento seleccionado -->
+                        <button id="btn-detalles-articulo" class="btn btn-secundario btn-compacto btn-detalles" type="button" aria-expanded="false" aria-controls="pestana-detalles">Detalles Articulo</button>
+                    </div>
+
+                    <!-- Pestaña de detalles: oculta por defecto. Se rellena con la respuesta del endpoint /elementos/:id/trazabilidad -->
+                    <div id="pestana-detalles" class="pestana-detalles" role="dialog" aria-hidden="true">
+                        <div class="pestana-header">
+                            <strong>Version y trazabilidad</strong>
+                            <!-- Botón para cerrar la pestaña -->
+                            <button id="pestana-cerrar" class="btn btn-secundario" type="button" aria-label="Cerrar">✕</button>
+                        </div>
+                        <div id="pestana-contenido">
+                            <div class="pestana-campo"><b>Version:</b> <span id="pestana-version"></span></div>
+                            <div class="pestana-campo"><b>Modificado por:</b> <span id="pestana-modificado-por"></span></div>
+                            <div class="pestana-campo"><b>Acuerdo:</b> <span id="pestana-acuerdo"></span></div>
+                            <div class="pestana-campo"><b>Fecha de sesión:</b> <span id="pestana-fecha-sesion"></span></div>
+                        </div>
+                    </div>
+
                     <div id="visor-contenido" class="visor-scroll">
                         <div class="visor-vacio">
                             Seleccione un articulo, inciso o subinciso del arbol para consultar su contenido.
@@ -370,10 +457,46 @@
         const token = localStorage.getItem('token')
         let reglamentosDisponibles = []
         let nodoActivo = null
+        // Guarda el objeto del nodo actualmente seleccionado
+        let nodoSeleccionado = null
 
         document.addEventListener('DOMContentLoaded', () => {
             cargarReglamentos()
             cargarUsuario()
+
+            // Inicializar comportamiento del botón de detalles: deshabilitado hasta seleccionar un nodo
+            const btnDetalles = document.getElementById('btn-detalles-articulo')
+            if (btnDetalles) {
+                btnDetalles.disabled = true
+                // Al pulsar, si ya hay un nodo seleccionado se consultará la trazabilidad
+                btnDetalles.addEventListener('click', async () => {
+                    const pestana = document.getElementById('pestana-detalles')
+                    if (!nodoSeleccionado) {
+                        // Mensaje rápido si no hay selección
+                        const visor = document.getElementById('visor-contenido')
+                        const aviso = document.createElement('p')
+                        aviso.className = 'mensaje-estado'
+                        aviso.textContent = 'Seleccione un elemento para ver los detalles.'
+                        visor.prepend(aviso)
+                        setTimeout(() => aviso.remove(), 2200)
+                        return
+                    }
+
+                    // Si la pestaña ya está visible, la cerramos; si no, la abrimos tras obtener datos
+                    const yaVisible = pestana.classList.contains('visible')
+                    if (yaVisible) {
+                        togglePestanaDetalles(false)
+                        return
+                    }
+
+                    await cargarTrazabilidadYMostrar(nodoSeleccionado)
+                    togglePestanaDetalles(true)
+                })
+            }
+
+            // Botón de cerrar dentro de la pestaña
+            const pestanaCerrar = document.getElementById('pestana-cerrar')
+            if (pestanaCerrar) pestanaCerrar.addEventListener('click', () => togglePestanaDetalles(false))
         })
 
         async function cargarReglamentos() {
@@ -511,6 +634,13 @@
             nodoActivo = header
             nodoActivo.classList.add('activo')
 
+            // Guardamos el nodo seleccionado para usarlo desde el botón de "detalles articulo"
+            nodoSeleccionado = nodo
+
+            // Habilitamos el botón de detalles (estaba deshabilitado hasta que se selecciona un elemento)
+            const btnDetalles = document.getElementById('btn-detalles-articulo')
+            if (btnDetalles) btnDetalles.disabled = false
+
             const visor = document.getElementById('visor-contenido')
             visor.innerHTML = `
                 <div class="articulo-meta">${escaparHTML(nodo.nivel || 'Elemento normativo')}</div>
@@ -611,6 +741,82 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;')
+        }
+
+        // --------------------------------------------------
+        // PESTAÑA DE DETALLES / TRAZABILIDAD
+        // - `togglePestanaDetalles`: abre/cierra la pestaña visualmente
+        // - `cargarTrazabilidadYMostrar`: realiza la petición a la API
+        // - `formatearFecha`: helper para presentar fechas legibles
+        // --------------------------------------------------
+
+        function togglePestanaDetalles(show) {
+            const pestana = document.getElementById('pestana-detalles')
+            const btn = document.getElementById('btn-detalles-articulo')
+            if (!pestana) return
+            if (show) {
+                pestana.classList.add('visible')
+                pestana.setAttribute('aria-hidden', 'false')
+                if (btn) btn.setAttribute('aria-expanded', 'true')
+            } else {
+                pestana.classList.remove('visible')
+                pestana.setAttribute('aria-hidden', 'true')
+                if (btn) btn.setAttribute('aria-expanded', 'false')
+            }
+        }
+
+        /**
+         * Consulta al endpoint de trazabilidad y rellena la pestaña.
+         * Recibe el objeto `nodo` tal como viene del árbol y extrae
+         * distintos identificadores posibles para mayor resiliencia.
+         */
+        async function cargarTrazabilidadYMostrar(nodo) {
+            const id = nodo.id_elemento || nodo.id || nodo.id_elemento_normativo || nodo.id_elemento_norma || nodo.id_registro
+            const contenido = document.getElementById('pestana-contenido')
+            if (!contenido) return
+
+            // Indicador de carga mientras llega la respuesta
+            contenido.innerHTML = '<p class="mensaje-estado">Cargando trazabilidad...</p>'
+
+            try {
+                const res = await fetch(`/api/elementos/${id}/trazabilidad`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (res.status === 404) {
+                    contenido.innerHTML = '<p class="mensaje-estado error">No se encontró trazabilidad para este elemento.</p>'
+                    return
+                }
+
+                if (!res.ok) throw new Error('Error al obtener trazabilidad')
+
+                const traz = await res.json()
+
+                // Mapeo flexible de campos (ajustable según respuesta real de la API)
+                const version = traz.version || traz.estado_vigencia || traz.version_num || ''
+                const modificadoPor = traz.modificado_por || traz.usuario || traz.modificado_por_nombre || ''
+                const acuerdo = traz.acuerdo || traz.numero_resolucion || traz.resolucion || ''
+                const fechaSesion = traz.fecha_sesion || traz.fecha || traz.fecha_emision || ''
+
+                document.getElementById('pestana-version').textContent = version || ''
+                document.getElementById('pestana-modificado-por').textContent = modificadoPor || ''
+                document.getElementById('pestana-acuerdo').textContent = acuerdo || ''
+                document.getElementById('pestana-fecha-sesion').textContent = fechaSesion ? formatearFecha(fechaSesion) : ''
+
+            } catch (error) {
+                contenido.innerHTML = `<p class="mensaje-estado error">Error al cargar trazabilidad: ${error.message}</p>`
+            }
+        }
+
+        // Presenta la fecha en formato local o, si no es parseable, devuelve el texto original
+        function formatearFecha(txt) {
+            try {
+                const d = new Date(txt)
+                if (isNaN(d)) return txt
+                return d.toLocaleString()
+            } catch (e) {
+                return txt
+            }
         }
     </script>
 </body>
