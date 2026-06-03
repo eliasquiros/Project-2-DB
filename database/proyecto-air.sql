@@ -26,7 +26,6 @@ DROP TABLE IF EXISTS propositos_comision          CASCADE;
 DROP TABLE IF EXISTS comision                     CASCADE;
 DROP TABLE IF EXISTS nombramiento                 CASCADE;
 DROP TABLE IF EXISTS asistencia_sesion_plenaria   CASCADE;
-DROP TABLE IF EXISTS voto   CASCADE;
 DROP TABLE IF EXISTS resolucion                   CASCADE;
 DROP TABLE IF EXISTS punto_agenda                 CASCADE;
 DROP TABLE IF EXISTS proponente_propuesta         CASCADE;
@@ -681,49 +680,45 @@ CREATE TRIGGER tg_auditoria_resolucion
     FOR EACH ROW
     EXECUTE FUNCTION fn_auditoria_total();
 
-CREATE OR REPLACE FUNCTION fn_validar_quorum()
+CREATE FUNCTION fn_validar_quorum()
 RETURNS TRIGGER AS $$
 DECLARE
     quorum_requerido_sesion  INT;
     presentes_sesion         INT;
     id_sesion_resolucion     INT;
     id_estado_presente       INT;
+    v_id_punto               INT;
 BEGIN
-    -- Obtiene el id_sesion a través del punto_agenda
-    -- ya que resolucion referencia id_punto_agenda
+    v_id_punto := (NEW).id_punto_agenda;
+
     SELECT pa.id_sesion INTO id_sesion_resolucion
     FROM punto_agenda pa
-    WHERE pa.id_punto_agenda = NEW.id_punto_agenda;
+    WHERE pa.id_punto_agenda = v_id_punto;
 
     IF id_sesion_resolucion IS NULL THEN
         RAISE EXCEPTION
             'QUORUM_ERROR: No se encontró la sesión asociada al punto de agenda %.',
-            NEW.id_punto_agenda;
+            v_id_punto;
     END IF;
 
-    -- Obtiene el quórum mínimo requerido definido en la sesión
     SELECT quorum_requerido INTO quorum_requerido_sesion
     FROM sesiones
     WHERE id_sesion = id_sesion_resolucion;
 
-    -- Obtiene el id del estado Presente desde el catálogo
     SELECT id_item INTO id_estado_presente
-    -- Correción: leer desde catalogo_maestro, no desde la tabla que no existe
     FROM catalogo_maestro
     WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
-        AND nombre = 'Presente'
+      AND nombre = 'Presente'
     LIMIT 1;
 
-    -- Cuenta los asambleístas presentes en la sesión
     SELECT COUNT(*) INTO presentes_sesion
     FROM asistencia_sesion_plenaria
-    WHERE id_sesion          = id_sesion_resolucion
+    WHERE id_sesion            = id_sesion_resolucion
       AND id_estado_asistencia = id_estado_presente;
 
-    -- Bloquea la inserción si no se alcanza el quórum mínimo
     IF presentes_sesion < quorum_requerido_sesion THEN
         RAISE EXCEPTION
-            'QUORUM_INSUFICIENTE: La sesión % requiere % miembros presentes para sesionar legalmente. Presentes registrados: %.',
+            'QUORUM_INSUFICIENTE: La sesión % requiere % miembros presentes. Presentes: %.',
             id_sesion_resolucion,
             quorum_requerido_sesion,
             presentes_sesion;
@@ -737,6 +732,36 @@ CREATE TRIGGER tg_validar_quorum
     BEFORE INSERT ON resolucion
     FOR EACH ROW
     EXECUTE FUNCTION fn_validar_quorum();
+
+-- =============================================================================
+-- Función consultable de quórum (Issue 11)
+-- A diferencia de fn_validar_quorum que es un trigger automático, esta función es llamada directamente por el controlador para mostrar el estado del quórum en la interfaz antes de votar.
+
+CREATE FUNCTION validar_quorum_legal(p_id_sesion INT)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_presentes     INT;
+    v_quorum_req    INT;
+    v_id_presente   INT;
+BEGIN
+    SELECT id_item INTO v_id_presente
+    FROM catalogo_maestro
+    WHERE grupo_catalogo = 'ESTADO_ASISTENCIA'
+      AND nombre = 'Presente'
+    LIMIT 1;
+
+    SELECT COUNT(*) INTO v_presentes
+    FROM asistencia_sesion_plenaria
+    WHERE id_sesion            = p_id_sesion
+      AND id_estado_asistencia = v_id_presente;
+
+    SELECT quorum_requerido INTO v_quorum_req
+    FROM sesiones
+    WHERE id_sesion = p_id_sesion;
+
+    RETURN v_presentes >= v_quorum_req;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =============================================================================
 
@@ -887,17 +912,6 @@ $$ LANGUAGE plpgsql;
 
 -- Issue 12: Motor de votaciones
 
--- Tabla para registro de votos individuales (nominal) y conteo (secreto)
-CREATE TABLE voto (
-    id_voto          SERIAL      PRIMARY KEY,
-    id_resolucion    INT         NOT NULL REFERENCES resolucion(id_resolucion),
-    id_asambleista   INT         REFERENCES asambleista(asambleista_id),
-    decision         VARCHAR(10) NOT NULL CHECK (decision IN ('FAVOR', 'CONTRA', 'ABSTENCION')),
-    es_secreto       BOOLEAN     NOT NULL DEFAULT FALSE,
-    fecha_registro   TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_voto_asambleista UNIQUE (id_resolucion, id_asambleista)
-);
-
 CREATE OR REPLACE FUNCTION calcular_resultado_votacion(
     p_votos_favor  INT,
     p_votos_contra INT,
@@ -1025,9 +1039,6 @@ $$ LANGUAGE plpgsql;
 ALTER TABLE certificacion_emitida
     ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVO';
 
-ALTER TABLE certificacion_emitida
-    ADD COLUMN IF NOT EXISTS snapshot_json JSONB;
-
 -- Filtra solo los elementos donde no hay fecha de vigencia, no se puede ver un artículo derogado
 CREATE OR REPLACE VIEW v_reglamento_vigente AS
 SELECT
@@ -1111,80 +1122,53 @@ ORDER BY total DESC;
 -- Issue 17: Motor de Generación de Certificaciones Legales
 
 -- Vista consolidada para el motor de certificaciones
-CREATE OR REPLACE VIEW v_hoja_vida_asambleista AS
-
--- Parte 1: participaciones como proponente
-SELECT
-    a.asambleista_id,
-    a.nombre,
-    a.cedula,
-    a.correo_institucional,
-    n.id_nombramiento,
-    n.fecha_inicio           AS nombramiento_inicio,
-    n.fecha_fin              AS nombramiento_fin,
-    n.estado                 AS nombramiento_estado,
-    cm_sec.nombre            AS sector,
-    cm_pue.nombre            AS puesto,
-    p.id_propuesta,
-    p.titulo                 AS propuesta_titulo,
-    p.codigo_air,
-    cm_et.nombre             AS etapa_propuesta,
-    cm_es.nombre             AS estado_propuesta,
-    s.id_sesion,
-    s.numero_sesion,
-    s.fecha                  AS fecha_sesion,
-    res.numero_resolucion,
-    res.fecha_emision        AS fecha_resolucion,
-    'PROPONENTE'::VARCHAR    AS tipo_participacion
+-- Fix de vista para Issue #2 - LEFT JOIN
+CREATE VIEW v_hoja_vida_asambleista AS
+SELECT 
+    a.asambleista_id, a.nombre, a.cedula, a.correo_institucional,
+    n.id_nombramiento, n.fecha_inicio AS nombramiento_inicio, n.fecha_fin AS nombramiento_fin,
+    n.estado AS nombramiento_estado,
+    cm_sec.nombre AS sector, cm_pue.nombre AS puesto,
+    p.id_propuesta, p.titulo AS propuesta_titulo, p.codigo_air,
+    cm_et.nombre AS etapa_propuesta, cm_es.nombre AS estado_propuesta,
+    s.id_sesion, s.numero_sesion, s.fecha AS fecha_sesion,
+    res.numero_resolucion, res.fecha_emision AS fecha_resolucion,
+    'PROPONENTE' AS tipo_participacion
 FROM asambleista a
-JOIN nombramiento         n    ON n.asambleista_id   = a.asambleista_id
-JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item     = n.sector_id
-JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item     = n.id_puesto
-JOIN proponente_propuesta pp   ON pp.id_asambleista  = a.asambleista_id
-JOIN propuesta            p    ON p.id_propuesta     = pp.id_propuesta
-JOIN catalogo_maestro  cm_et   ON cm_et.id_item      = p.id_etapa_propuesta
-JOIN catalogo_maestro  cm_es   ON cm_es.id_item      = p.id_estado_propuesta
-LEFT JOIN punto_agenda    pa   ON pa.id_propuesta    = p.id_propuesta
-LEFT JOIN sesiones        s    ON s.id_sesion        = pa.id_sesion
-LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda
+JOIN nombramiento n ON n.asambleista_id = a.asambleista_id
+LEFT JOIN catalogo_maestro cm_sec ON cm_sec.id_item = n.sector_id
+LEFT JOIN catalogo_maestro cm_pue ON cm_pue.id_item = n.id_puesto
+JOIN proponente_propuesta pp ON pp.id_asambleista = a.asambleista_id
+JOIN propuesta p ON p.id_propuesta = pp.id_propuesta
+JOIN catalogo_maestro cm_et ON cm_et.id_item = p.id_etapa_propuesta
+JOIN catalogo_maestro cm_es ON cm_es.id_item = p.id_estado_propuesta
+LEFT JOIN punto_agenda pa ON pa.id_propuesta = p.id_propuesta
+LEFT JOIN sesiones s ON s.id_sesion = pa.id_sesion
+LEFT JOIN resolucion res ON res.id_punto_agenda = pa.id_punto_agenda
 
 UNION ALL
 
--- Parte 2: participaciones como integrante de comisión
-SELECT
-    a.asambleista_id,
-    a.nombre,
-    a.cedula,
-    a.correo_institucional,
-    n.id_nombramiento,
-    n.fecha_inicio,
-    n.fecha_fin,
-    n.estado,
-    cm_sec.nombre,
-    cm_pue.nombre,
-    p.id_propuesta,
-    p.titulo,
-    p.codigo_air,
-    cm_et.nombre,
-    cm_es.nombre,
-    s.id_sesion,
-    s.numero_sesion,
-    s.fecha,
-    res.numero_resolucion,
-    res.fecha_emision,
-    'COMISION'::VARCHAR
+SELECT 
+    a.asambleista_id, a.nombre, a.cedula, a.correo_institucional,
+    n.id_nombramiento, n.fecha_inicio, n.fecha_fin, n.estado,
+    cm_sec.nombre, cm_pue.nombre,
+    p.id_propuesta, p.titulo, p.codigo_air,
+    cm_et.nombre, cm_es.nombre,
+    s.id_sesion, s.numero_sesion, s.fecha,
+    res.numero_resolucion, res.fecha_emision,
+    'COMISION' AS tipo_participacion
 FROM asambleista a
-JOIN nombramiento         n    ON n.asambleista_id    = a.asambleista_id
-JOIN catalogo_maestro  cm_sec  ON cm_sec.id_item      = n.sector_id
-JOIN catalogo_maestro  cm_pue  ON cm_pue.id_item      = n.id_puesto
-JOIN integrante_comision ic    ON ic.id_asambleista   = a.asambleista_id
-JOIN propositos_comision pcm   ON pcm.id_comision     = ic.id_comision
-JOIN propuesta            p    ON p.id_propuesta      = pcm.id_propuesta
-JOIN catalogo_maestro  cm_et   ON cm_et.id_item       = p.id_etapa_propuesta
-JOIN catalogo_maestro  cm_es   ON cm_es.id_item       = p.id_estado_propuesta
-LEFT JOIN punto_agenda    pa   ON pa.id_propuesta     = p.id_propuesta
-LEFT JOIN sesiones        s    ON s.id_sesion         = pa.id_sesion
-LEFT JOIN resolucion      res  ON res.id_punto_agenda = pa.id_punto_agenda;
+JOIN nombramiento n ON n.asambleista_id = a.asambleista_id
+LEFT JOIN catalogo_maestro cm_sec ON cm_sec.id_item = n.sector_id
+LEFT JOIN catalogo_maestro cm_pue ON cm_pue.id_item = n.id_puesto
+JOIN integrante_comision ic ON ic.id_asambleista = a.asambleista_id
+JOIN propositos_comision pcm ON pcm.id_comision = ic.id_comision
+JOIN propuesta p ON p.id_propuesta = pcm.id_propuesta
+JOIN catalogo_maestro cm_et ON cm_et.id_item = p.id_etapa_propuesta
+JOIN catalogo_maestro cm_es ON cm_es.id_item = p.id_estado_propuesta
+LEFT JOIN punto_agenda pa ON pa.id_propuesta = p.id_propuesta
+LEFT JOIN sesiones s ON s.id_sesion = pa.id_sesion
+LEFT JOIN resolucion res ON res.id_punto_agenda = pa.id_punto_agenda;
 
 -- Función que la consume
 CREATE OR REPLACE FUNCTION obtener_historial_atestados(p_id_asambleista INT)
@@ -1213,4 +1197,90 @@ BEGIN
     WHERE hv.asambleista_id = p_id_asambleista
     ORDER BY hv.fecha_sesion NULLS LAST;
 END;
+-- ============================================================
+-- DATOS SEMILLA — elemento_normativo
+-- Prueba Issue #10 y #16 — Árbol recursivo y trazabilidad
+-- Niveles: 10=Título 11=Capítulo 12=Artículo 13=Inciso
+-- Estado vigente: 25
+-- ============================================================
+
+-- ============================================================
+-- REGLAMENTO 1: Estatuto Orgánico del ITCR (id=1)
+-- ============================================================
+
+-- TÍTULO I
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, NULL, 10, 'Título I', 'De la Naturaleza y Fines del Instituto', 1, '2000-01-01', 25);
+-- id = 1
+
+-- TÍTULO II
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, NULL, 10, 'Título II', 'De la Estructura Orgánica', 2, '2000-01-01', 25);
+-- id = 2
+
+-- ── CAPÍTULO 1 (hijo de Título I → id 1)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 1, 11, 'Capítulo I', 'Disposiciones Generales', 1, '2000-01-01', 25);
+-- id = 3
+
+-- ── CAPÍTULO 2 (hijo de Título I → id 1)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 1, 11, 'Capítulo II', 'De los Principios Institucionales', 2, '2000-01-01', 25);
+-- id = 4
+
+-- ──── ARTÍCULO 1 (hijo de Capítulo I → id 3)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 3, 12, 'Artículo 1', 'El Instituto Tecnológico de Costa Rica es una institución nacional autónoma de educación superior universitaria, dedicada a la docencia, la investigación y la extensión de la tecnología y las ciencias conexas para el desarrollo de Costa Rica. Fue creado mediante Ley N.° 4777 del 10 de junio de 1971 y goza de independencia para el desempeño de sus funciones y de plena capacidad jurídica para adquirir derechos y contraer obligaciones.', 1, '2000-01-01', 25);
+-- id = 5
+
+-- ──── ARTÍCULO 2 (hijo de Capítulo I → id 3)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 3, 12, 'Artículo 2', 'Son fines del Instituto Tecnológico de Costa Rica contribuir al desarrollo integral del país, mediante la formación de recursos humanos, la investigación y la extensión; manteniendo el liderazgo científico, tecnológico y técnico, la creatividad y el espíritu emprendedor del personal y de los estudiantes, para que constituyan fuerzas activas del desarrollo económico, social y ambiental sostenible del país.', 2, '2000-01-01', 25);
+-- id = 6
+
+-- ────── INCISO a) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'a)', 'Formar profesionales en el campo tecnológico que contribuyan al desarrollo de Costa Rica, mediante una sólida preparación científica, tecnológica y humanística.', 1, '2000-01-01', 25);
+-- id = 7
+
+-- ────── INCISO b) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'b)', 'Generar, adaptar e incorporar en forma sistemática y continua la tecnología necesaria para el desarrollo nacional, con énfasis en la pequeña y mediana empresa.', 2, '2000-01-01', 25);
+-- id = 8
+
+-- ────── INCISO c) (hijo de Artículo 2 → id 6)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 6, 13, 'c)', 'Contribuir al mejoramiento de la calidad de vida del pueblo costarricense mediante la proyección de sus actividades a la atención y solución de los problemas prioritarios del país, a fin de edificar una sociedad más justa.', 3, '2000-01-01', 25);
+-- id = 9
+
+-- ──── ARTÍCULO 3 (hijo de Capítulo II → id 4)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 4, 12, 'Artículo 3', 'El Instituto Tecnológico de Costa Rica se fundamenta en los siguientes principios: la búsqueda permanente de la excelencia académica; el compromiso con la democracia, la libertad, la justicia social y la paz; el respeto a la dignidad humana y a la diversidad cultural; el apego irrestricto a la ética y a la moral; la transparencia y la rendición de cuentas como práctica institucional permanente.', 1, '2000-01-01', 25);
+-- id = 10
+
+-- ────── INCISO a) (hijo de Artículo 3 → id 10)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 10, 13, 'a)', 'Excelencia académica: el Instituto buscará permanentemente los más altos estándares de calidad en todas sus actividades de docencia, investigación y extensión.', 1, '2000-01-01', 25);
+-- id = 11
+
+-- ────── INCISO b) (hijo de Artículo 3 → id 10)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 10, 13, 'b)', 'Compromiso social: el Instituto orientará sus actividades hacia la atención de las necesidades y problemas de la sociedad costarricense, con especial atención a los sectores más vulnerables de la población.', 2, '2000-01-01', 25);
+-- id = 12
+
+-- ── CAPÍTULO 1 (hijo de Título II → id 2)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 2, 11, 'Capítulo I', 'De los Órganos de Gobierno', 1, '2000-01-01', 25);
+-- id = 13
+
+-- ──── ARTÍCULO 4 (hijo de Capítulo I Título II → id 13)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 13, 12, 'Artículo 4', 'La estructura orgánica del Instituto Tecnológico de Costa Rica estará conformada por los siguientes órganos superiores de gobierno: la Asamblea Institucional Representativa, el Consejo Institucional, la Rectoría, las Vicerrectorías, los Centros Académicos y las unidades académicas y administrativas que se creen por reglamento interno.', 1, '2000-01-01', 25);
+-- id = 14
+
+-- ──── ARTÍCULO 5 (hijo de Capítulo I Título II → id 13)
+INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+VALUES (1, 13, 12, 'Artículo 5', 'La Asamblea Institucional Representativa es el órgano superior de deliberación y decisión del Instituto. Le corresponde conocer y resolver los asuntos de mayor trascendencia institucional, entre ellos la reforma al Estatuto Orgánico, la aprobación de las políticas generales y la elección de las autoridades superiores del Instituto.', 2, '2000-01-01', 25);
+-- id = 15
+
 $$ LANGUAGE plpgsql;
