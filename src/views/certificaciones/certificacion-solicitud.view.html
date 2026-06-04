@@ -165,6 +165,54 @@
             margin-top: 1.5rem;
             justify-content: flex-end;
         }
+
+        /* ── BUSCADOR AUTOCOMPLETADO (Issue 3) ── */
+        .buscador-wrapper {
+            position: relative;
+        }
+
+        .buscador-wrapper input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+        }
+
+        .buscador-wrapper input:focus {
+            outline: none;
+            border-color: #2E5FA3;
+        }
+
+        .sugerencias-lista {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .sugerencias-lista.visible { display: block; }
+
+        .sugerencia-item {
+            padding: 0.6rem 0.8rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .sugerencia-item:last-child { border-bottom: none; }
+        .sugerencia-item:hover { background: #eaf2fb; }
+        .sugerencia-item .cedula { color: #777; font-size: 0.82rem; }
     </style>
 </head>
 <body>
@@ -176,11 +224,17 @@
         <h2 style="margin-top:0; border:none;">Nueva certificación</h2>
 
         <div class="form-row">
+            <!-- Issue 3: Buscador con autocompletado en lugar de select -->
             <div class="form-group">
                 <label>Asambleísta *</label>
-                <select id="select-asambleista">
-                    <option value="">-- Seleccione --</option>
-                </select>
+                <div class="buscador-wrapper">
+                    <input type="text" id="input-buscar-asambleista"
+                        placeholder="Buscar por nombre o cédula..."
+                        autocomplete="off"
+                        oninput="filtrarAsambleistas(this.value)" />
+                    <input type="hidden" id="select-asambleista" />
+                    <div class="sugerencias-lista" id="sugerencias-lista"></div>
+                </div>
             </div>
             <div class="form-group">
                 <label>Fecha inicio *</label>
@@ -264,40 +318,106 @@
         const token = localStorage.getItem('token')
         let datosPreview = null
 
-        // ── CARGAR ASAMBLEÍSTAS ───────────────────────────────────────────
+        // ── CARGAR ASAMBLEÍSTAS (Issue 3) ─────────────────────────────────
+        let todosLosAsambleistas = []
+
         async function cargarAsambleistas() {
             try {
                 const res = await fetch('/api/asambleistas', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
-                const asambleistas = await res.json()
-                const select = document.getElementById('select-asambleista')
-
-                asambleistas.forEach(a => {
-                    select.innerHTML +=
-                        `<option value="${a.asambleista_id}"
-                            data-nombre="${a.nombre}"
-                            data-cedula="${a.cedula}">
-                            ${a.nombre} (${a.cedula})
-                        </option>`
-                })
-
-                select.addEventListener('change', function () {
-                    const opt = this.options[this.selectedIndex]
-                    const info = document.getElementById('info-asambleista')
-                    cancelarPreview()
-                    if (this.value) {
-                        info.innerHTML =
-                            `<strong>${opt.dataset.nombre}</strong> — Cédula: ${opt.dataset.cedula}`
-                        info.classList.add('visible')
-                    } else {
-                        info.classList.remove('visible')
-                    }
-                })
+                todosLosAsambleistas = await res.json()
             } catch (error) {
                 console.error('Error al cargar asambleístas:', error.message)
             }
         }
+
+        function filtrarAsambleistas(texto) {
+            const lista  = document.getElementById('sugerencias-lista')
+            const hidden = document.getElementById('select-asambleista')
+
+            hidden.value = ''
+            cancelarPreview()
+            document.getElementById('info-asambleista').classList.remove('visible')
+
+            if (!texto || texto.length < 2) {
+                lista.classList.remove('visible')
+                return
+            }
+
+            const termino  = texto.toLowerCase()
+            const filtrados = todosLosAsambleistas.filter(a =>
+                a.nombre.toLowerCase().includes(termino) ||
+                a.cedula.includes(termino)
+            )
+
+            if (filtrados.length === 0) {
+                lista.innerHTML = `<div class="sugerencia-item" style="color:#999;">Sin resultados</div>`
+                lista.classList.add('visible')
+                return
+            }
+
+            lista.innerHTML = filtrados.map(a => `
+                <div class="sugerencia-item"
+                    onclick="seleccionarAsambleista('${a.asambleista_id}', '${a.nombre.replace(/'/g, "\\'")}', '${a.cedula}')">
+                    <div>${a.nombre}</div>
+                    <div class="cedula">Cédula: ${a.cedula} — ${a.estado === 'VIGENTE' ? '✅ Nombramiento vigente' : '⚠️ Sin nombramiento activo'}</div>
+                </div>
+            `).join('')
+
+            lista.classList.add('visible')
+        }
+
+        async function seleccionarAsambleista(id, nombre, cedula) {
+            document.getElementById('select-asambleista').value        = id
+            document.getElementById('input-buscar-asambleista').value  = nombre
+            document.getElementById('sugerencias-lista').classList.remove('visible')
+            cancelarPreview()
+
+            // Issue 3: Obtener nombramiento activo para mostrar sector y vigencia
+            try {
+                const res = await fetch(`/api/asambleistas/${id}/nombramientos`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                const data = await res.json()
+                const info = document.getElementById('info-asambleista')
+
+                const nomActivo = data.nombramientos?.find(n => n.estado === 'ACTIVO')
+
+                if (nomActivo) {
+                    const fechaInicio = new Date(nomActivo.fecha_inicio).toLocaleDateString('es-CR')
+                    const fechaFin    = nomActivo.fecha_fin
+                        ? new Date(nomActivo.fecha_fin).toLocaleDateString('es-CR')
+                        : 'Vigente'
+
+                    info.innerHTML = `
+                        <strong>${nombre}</strong> — Cédula: ${cedula}<br>
+                        <span style="font-size:0.85rem; color:#555;">
+                            Sector: <strong>${nomActivo.sector || '—'}</strong> &nbsp;|&nbsp;
+                            Puesto: <strong>${nomActivo.puesto || '—'}</strong> &nbsp;|&nbsp;
+                            Período: <strong>${fechaInicio} — ${fechaFin}</strong>
+                        </span>
+                    `
+                } else {
+                    info.innerHTML = `
+                        <strong>${nombre}</strong> — Cédula: ${cedula}<br>
+                        <span style="font-size:0.85rem; color:#c0392b;">
+                            ⚠️ Este asambleísta no tiene nombramiento activo.
+                        </span>
+                    `
+                }
+                info.classList.add('visible')
+            } catch (error) {
+                console.error('Error al obtener nombramiento:', error.message)
+            }
+        }
+
+        // Cerrar sugerencias al hacer clic fuera
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.buscador-wrapper')) {
+                document.getElementById('sugerencias-lista').classList.remove('visible')
+            }
+        })
 
         // ── SOLICITAR PREVIEW (Issue 1) ───────────────────────────────────
         async function solicitarPreview() {
@@ -474,9 +594,10 @@
                 URL.revokeObjectURL(url)
 
                 cancelarPreview()
-                document.getElementById('select-asambleista').value = ''
-                document.getElementById('input-fecha-inicio').value = ''
-                document.getElementById('input-fecha-fin').value    = ''
+                document.getElementById('select-asambleista').value           = ''
+                document.getElementById('input-buscar-asambleista').value     = ''
+                document.getElementById('input-fecha-inicio').value           = ''
+                document.getElementById('input-fecha-fin').value              = ''
                 document.getElementById('info-asambleista').classList.remove('visible')
                 cargarHistorial()
 
@@ -541,7 +662,7 @@
             }
         }
 
-        // ── RE-IMPRIMIR (Issue 5) ──────────────────────────────────
+        // ── RE-IMPRIMIR (Issue 5) ─────────────────────────────────────────
         async function reimprimirCertificacion(id_asambleista, folio) {
             const confirmed = confirm(
                 `¿Re-imprimir la certificación ${folio}?\n\n` +
