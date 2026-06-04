@@ -1284,3 +1284,72 @@ VALUES (1, 13, 12, 'Artículo 5', 'La Asamblea Institucional Representativa es e
 -- id = 15
 
 $$ LANGUAGE plpgsql;
+
+-- =============================================================================
+
+-- DATOS INICIALES: Permisos, Roles y Usuarios Base
+-- Issue 0: Seguridad RBAC
+-- Mejora de vista de login y roles con permisos asignados 
+
+-- =============================================================================
+
+-- Permisos
+INSERT INTO sys_permiso (nombre_permiso, descripcion) VALUES
+    ('GESTIONAR_USUARIOS',    'Control total del sistema y gestión de usuarios'),
+    ('VER_ASAMBLEISTAS',      'Ver listado y detalle de asambleístas'),
+    ('EDITAR_ASAMBLEISTAS',   'Crear y editar asambleístas y nombramientos'),
+    ('VER_SESIONES',          'Ver sesiones y votaciones'),
+    ('EDITAR_SESIONES',       'Crear y gestionar sesiones y votaciones'),
+    ('VER_REGLAMENTOS',       'Ver compilador de reglamentos vigentes'),
+    ('EDITAR_REGLAMENTOS',    'Crear y editar elementos normativos'),
+    ('EMITIR_CERTIFICACIONES','Emitir y anular certificaciones oficiales'),
+    ('VER_CERTIFICACIONES',   'Ver historial de certificaciones'),
+    ('VER_AUDITORIA',         'Ver bitácora de auditoría del sistema')
+ON CONFLICT (nombre_permiso) DO NOTHING;
+
+-- Permisos por rol
+INSERT INTO sys_rol_permiso (id_rol, id_permiso)
+SELECT r.id_rol, p.id_permiso
+FROM sys_rol r, sys_permiso p
+WHERE (r.nombre_rol = 'SECRETARIA' AND p.nombre_permiso IN (
+    'VER_ASAMBLEISTAS','EDITAR_ASAMBLEISTAS',
+    'VER_SESIONES','EDITAR_SESIONES',
+    'VER_REGLAMENTOS','EDITAR_REGLAMENTOS',
+    'EMITIR_CERTIFICACIONES','VER_CERTIFICACIONES',
+    'VER_AUDITORIA'
+))
+OR (r.nombre_rol = 'ASISTENTE' AND p.nombre_permiso IN (
+    'VER_ASAMBLEISTAS','EDITAR_ASAMBLEISTAS',
+    'VER_SESIONES','EDITAR_SESIONES',
+    'VER_REGLAMENTOS','EDITAR_REGLAMENTOS',
+    'VER_CERTIFICACIONES'
+))
+OR (r.nombre_rol = 'DIRECTORIO' AND p.nombre_permiso IN (
+    'VER_ASAMBLEISTAS',
+    'VER_SESIONES',
+    'VER_REGLAMENTOS',
+    'VER_CERTIFICACIONES'
+))
+OR (r.nombre_rol = 'ASAMBLEISTA' AND p.nombre_permiso IN (
+    'VER_ASAMBLEISTAS',
+    'VER_SESIONES',
+    'VER_REGLAMENTOS'
+))
+OR (r.nombre_rol = 'CONSULTA' AND p.nombre_permiso IN (
+    'VER_REGLAMENTOS',
+    'VER_CERTIFICACIONES'
+))
+ON CONFLICT DO NOTHING;
+
+-- Usuarios base del sistema
+INSERT INTO sys_usuario (username, password_hash, email, activo) VALUES
+    ('admin01',     '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@tec.ac.cr',     true),
+    ('consulta01',  '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'consulta@tec.ac.cr',  true)
+ON CONFLICT (username) DO NOTHING;
+
+INSERT INTO sys_usuario_rol (id_usuario, id_rol)
+SELECT u.id_usuario, r.id_rol
+FROM sys_usuario u, sys_rol r
+WHERE (u.username = 'admin01'    AND r.nombre_rol = 'SECRETARIA')
+   OR (u.username = 'consulta01' AND r.nombre_rol = 'CONSULTA')
+ON CONFLICT DO NOTHING;
