@@ -8,6 +8,21 @@
 const PDFDocument = require('pdfkit')
 const { generarHashVerificacion } = require('./CryptoService')
 
+// Issue 8: Convierte números a letras en español para el formato legal del PDF
+const numeroALetras = (n) => {
+    const unidades = ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve',
+                      'diez','once','doce','trece','catorce','quince','dieciséis','diecisiete',
+                      'dieciocho','diecinueve','veinte','veintiuno','veintidós','veintitrés',
+                      'veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve']
+    const decenas  = ['','','veinte','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa']
+
+    if (n < 30) return unidades[n]
+    const d = Math.floor(n / 10)
+    const u = n % 10
+    if (u === 0) return decenas[d]
+    return `${decenas[d]} y ${unidades[u]}`
+}
+
 // Genera el PDF oficial de la certificación
 // Recibe el objeto completo de datos del asambleísta y sus participaciones
 const generarCertificacionPDF = (datos) => {
@@ -97,16 +112,17 @@ const generarCertificacionPDF = (datos) => {
         doc.moveDown(0.3)
 
         if (datos.asistencia && datos.asistencia.sesiones_totales > 0) {
+            const asistidas = numeroALetras(datos.asistencia.sesiones_asistidas)
+            const totales   = numeroALetras(datos.asistencia.sesiones_totales)
+            const porcentaje = datos.asistencia.porcentaje == 100
+                ? 'el cien por ciento'
+                : `un ${datos.asistencia.porcentaje}%`
+
             doc.font('Helvetica').text(
-                `La persona indicada participó en ${datos.asistencia.sesiones_asistidas} ` +
-                `de las ${datos.asistencia.sesiones_totales} sesiones plenarias convocadas ` +
-                `en el período, lo que representa un ${datos.asistencia.porcentaje}% de asistencia. ` +
+                `La persona indicada participó en ${asistidas} (${datos.asistencia.sesiones_asistidas}) ` +
+                `de las ${totales} (${datos.asistencia.sesiones_totales}) sesiones plenarias convocadas ` +
+                `en el período, lo que representa ${porcentaje} de asistencia. ` +
                 `Lo anterior según los registros de asistencia de la Secretaría de la AIR.`,
-                { align: 'justify' }
-            )
-        } else {
-            doc.font('Helvetica').text(
-                'No se registran sesiones plenarias en el período indicado.',
                 { align: 'justify' }
             )
         }
