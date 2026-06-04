@@ -1358,3 +1358,46 @@ FROM sys_usuario u, sys_rol r
 WHERE (u.username = 'admin01'    AND r.nombre_rol = 'ADMIN')
    OR (u.username = 'consulta01' AND r.nombre_rol = 'CONSULTA')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- VISTAS SQL — Issue #16 Reportería Administrativa
+-- Alimentan los gráficos y exportación de la sección Reportes
+-- ============================================================
+
+-- Vista 1: Certificaciones emitidas por mes dado un año
+CREATE OR REPLACE VIEW vista_certificaciones_por_mes AS
+SELECT
+    EXTRACT(YEAR  FROM fecha_emision)::INT AS anio,
+    EXTRACT(MONTH FROM fecha_emision)::INT AS mes,
+    COUNT(*)                               AS total_certificaciones
+FROM certificacion_emitida
+GROUP BY
+    EXTRACT(YEAR  FROM fecha_emision),
+    EXTRACT(MONTH FROM fecha_emision)
+ORDER BY anio, mes;
+
+
+-- Vista 2: Nombramientos activos agrupados por sector
+-- Usa estado = 'ACTIVO' y fecha_fin IS NULL para mayor seguridad
+CREATE OR REPLACE VIEW vista_nombramientos_por_sector AS
+SELECT
+    cm.nombre          AS sector,
+    COUNT(*)           AS total_nombramientos
+FROM nombramiento n
+JOIN catalogo_maestro cm
+    ON n.sector_id = cm.id_item
+WHERE n.estado    = 'ACTIVO'
+  AND (n.fecha_fin IS NULL OR n.fecha_fin >= CURRENT_DATE)
+GROUP BY cm.nombre
+ORDER BY total_nombramientos DESC;
+
+
+
+-- Vista 3: Total de folios emitidos agrupados por año
+CREATE OR REPLACE VIEW vista_folios_por_anio AS
+SELECT
+    EXTRACT(YEAR FROM fecha_emision)::INT AS anio,
+    COUNT(*)                              AS total_folios
+FROM certificacion_emitida
+GROUP BY EXTRACT(YEAR FROM fecha_emision)
+ORDER BY anio DESC;
