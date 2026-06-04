@@ -1307,11 +1307,15 @@ INSERT INTO sys_permiso (nombre_permiso, descripcion) VALUES
     ('VER_AUDITORIA',         'Ver bitácora de auditoría del sistema')
 ON CONFLICT (nombre_permiso) DO NOTHING;
 
+-- Rol ADMIN
+INSERT INTO sys_rol (nombre_rol) VALUES ('ADMIN') ON CONFLICT (nombre_rol) DO NOTHING;
+
 -- Permisos por rol
 INSERT INTO sys_rol_permiso (id_rol, id_permiso)
 SELECT r.id_rol, p.id_permiso
 FROM sys_rol r, sys_permiso p
-WHERE (r.nombre_rol = 'SECRETARIA' AND p.nombre_permiso IN (
+WHERE (r.nombre_rol = 'ADMIN')
+OR (r.nombre_rol = 'SECRETARIA' AND p.nombre_permiso IN (
     'VER_ASAMBLEISTAS','EDITAR_ASAMBLEISTAS',
     'VER_SESIONES','EDITAR_SESIONES',
     'VER_REGLAMENTOS','EDITAR_REGLAMENTOS',
@@ -1343,13 +1347,13 @@ ON CONFLICT DO NOTHING;
 
 -- Usuarios base del sistema
 INSERT INTO sys_usuario (username, password_hash, email, activo) VALUES
-    ('admin01',     '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@tec.ac.cr',     true),
-    ('consulta01',  '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'consulta@tec.ac.cr',  true)
+    ('admin01',    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@tec.ac.cr',    true),
+    ('consulta01', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'consulta@tec.ac.cr', true)
 ON CONFLICT (username) DO NOTHING;
 
 INSERT INTO sys_usuario_rol (id_usuario, id_rol)
 SELECT u.id_usuario, r.id_rol
 FROM sys_usuario u, sys_rol r
-WHERE (u.username = 'admin01'    AND r.nombre_rol = 'SECRETARIA')
+WHERE (u.username = 'admin01'    AND r.nombre_rol = 'ADMIN')
    OR (u.username = 'consulta01' AND r.nombre_rol = 'CONSULTA')
 ON CONFLICT DO NOTHING;
