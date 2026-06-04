@@ -1197,6 +1197,7 @@ BEGIN
     WHERE hv.asambleista_id = p_id_asambleista
     ORDER BY hv.fecha_sesion NULLS LAST;
 END;
+$$ LANGUAGE plpgsql;
 -- ============================================================
 -- DATOS SEMILLA — elemento_normativo
 -- Prueba Issue #10 y #16 — Árbol recursivo y trazabilidad
@@ -1283,7 +1284,7 @@ INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_regla
 VALUES (1, 13, 12, 'Artículo 5', 'La Asamblea Institucional Representativa es el órgano superior de deliberación y decisión del Instituto. Le corresponde conocer y resolver los asuntos de mayor trascendencia institucional, entre ellos la reforma al Estatuto Orgánico, la aprobación de las políticas generales y la elección de las autoridades superiores del Instituto.', 2, '2000-01-01', 25);
 -- id = 15
 
-$$ LANGUAGE plpgsql;
+
 
 -- =============================================================================
 
