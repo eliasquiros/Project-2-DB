@@ -231,8 +231,7 @@ const obtenerTablasAuditadas = async (req, res) => {
 // Issue #16 — Reportería Administrativa
 // Maneja estadísticas y exportación de datos del sistema AIR
 
-const Reporte = require('../models/Reporte')
-const { generarExcelEstadisticas } = require('../services/Exportaciones')
+
 
 // Obtiene todas las estadísticas del año seleccionado en paralelo
 // Alimenta los gráficos y métricas rápidas de la vista
