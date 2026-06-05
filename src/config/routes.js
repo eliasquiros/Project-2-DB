@@ -72,4 +72,8 @@ router.get('/auditoria/certificaciones-por-mes', verificarToken, ReporteControll
 router.get('/auditoria/asambleistas-consultados', verificarToken, ReporteController.obtenerAsambleistasConsultados)
 router.get('/auditoria/tablas', verificarToken, ReporteController.obtenerTablasAuditadas)
 
+// ── REPORTES ──────────────────────────────────────────────
+router.get('/reportes/estadisticas', verificarToken, ReporteController.obtenerEstadisticas)
+router.get('/reportes/exportar',     verificarToken, ReporteController.exportarExcel)
+
 module.exports = router
