@@ -10,6 +10,8 @@
 const Auditoria     = require('../models/Auditoria')
 const Certificacion = require('../models/Certificacion')
 const { generarCertificacionPDF } = require('../services/PDFService')
+const Reporte = require('../models/Reporte')
+const { generarExcelEstadisticas } = require('../services/ExcelService')
 
 // ── CERTIFICACIONES (Issue 17 + Issue 5) ─────────────────────────────────────
 
@@ -226,6 +228,58 @@ const obtenerTablasAuditadas = async (req, res) => {
     }
 }
 
+// Issue #16 — Reportería Administrativa
+// Maneja estadísticas y exportación de datos del sistema AIR
+
+const Reporte = require('../models/Reporte')
+const { generarExcelEstadisticas } = require('../services/Exportaciones')
+
+// Obtiene todas las estadísticas del año seleccionado en paralelo
+// Alimenta los gráficos y métricas rápidas de la vista
+const obtenerEstadisticas = async (req, res) => {
+    try {
+        const { anio } = req.query
+
+        if (!anio || isNaN(anio)) {
+            return res.status(400).json({ error: 'El año es inválido o no fue enviado' })
+        }
+
+        // Promise.all ejecuta las tres consultas en paralelo para mayor eficiencia
+        const [porMes, porSector, folios] = await Promise.all([
+            Reporte.obtenerCertificacionesPorMes(anio),
+            Reporte.obtenerDesglosePorSector(),
+            Reporte.obtenerFoliosPorAnio(anio)
+        ])
+
+        res.json({ porMes, porSector, folios })
+
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+}
+
+// Genera y descarga el archivo Excel con las estadísticas del año
+const exportarExcel = async (req, res) => {
+    try {
+        const { anio } = req.query
+
+        if (!anio || isNaN(anio)) {
+            return res.status(400).json({ error: 'El año es inválido o no fue enviado' })
+        }
+
+        const datos = await Reporte.exportarEstadisticas(anio)
+        const buffer = generarExcelEstadisticas(datos, anio)
+
+        // Configura los headers para que el navegador descargue el archivo
+        res.setHeader('Content-Disposition', `attachment; filename="reporte-air-${anio}.xlsx"`)
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        res.send(buffer)
+
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+}
+
 module.exports = {
     generarCertificacion,
     previewCertificacion,
@@ -236,5 +290,7 @@ module.exports = {
     obtenerResumenAuditoria,
     obtenerCertificacionesPorMes,
     obtenerAsambleistasConsultados,
-    obtenerTablasAuditadas
+    obtenerTablasAuditadas,
+    obtenerEstadisticas,
+    exportarExcel
 }
