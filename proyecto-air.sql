@@ -28,6 +28,7 @@ DROP TABLE IF EXISTS nombramiento                 CASCADE;
 DROP TABLE IF EXISTS asistencia_sesion_plenaria   CASCADE;
 DROP TABLE IF EXISTS resolucion                   CASCADE;
 DROP TABLE IF EXISTS punto_agenda                 CASCADE;
+DROP TABLE IF EXISTS propuesta_elemento_afectado  CASCADE;
 DROP TABLE IF EXISTS proponente_propuesta         CASCADE;
 DROP TABLE IF EXISTS bitacora_propuesta           CASCADE;
 DROP TABLE IF EXISTS propuesta                    CASCADE;
@@ -232,6 +233,19 @@ CREATE TABLE proponente_propuesta (
     id_asambleista          INT       NOT NULL REFERENCES asambleista(asambleista_id),
     fecha_registro          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (id_propuesta, id_asambleista)
+);
+
+-- Relación N:M entre las propuestas y los elementos normativos que se proponen reformar
+-- Guarda la modalidad (sustitutivo/parcial) y el texto propuesto para cada elemento
+CREATE TABLE propuesta_elemento_afectado (
+    id_propuesta_elemento  SERIAL       PRIMARY KEY,
+    id_propuesta           INT          NOT NULL REFERENCES propuesta(id_propuesta),
+    id_elemento            INT          NOT NULL REFERENCES elemento_normativo(id_elemento),
+    modalidad_reforma      VARCHAR(20)  NOT NULL DEFAULT 'SUSTITUTIVO'
+                           CHECK (modalidad_reforma IN ('SUSTITUTIVO', 'PARCIAL')),
+    cuerpo_propuesta       TEXT,
+    link_documentacion     VARCHAR(500),
+    UNIQUE (id_propuesta, id_elemento)
 );
 
 -- Puente entre las sesiones y propuestas (cuando suceden dentro de la sesión)
