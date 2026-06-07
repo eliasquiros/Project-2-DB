@@ -155,16 +155,16 @@ git push origin feature/issue-09-catalogo-asambleistas
 
 | Issue | Descripción | Sprint | Estado |
 |:---:|---|:---:|:---:|
-| `#0` | 🔐 Seguridad RBAC | Sprint 2 | ⏳ |
-| `#9` | 👤 Catálogo de Asambleístas | Sprint 2 | ⏳ |
-| `#10` | 📜 Jerarquía de Reglamentos | Sprint 2 | ⏳ |
-| `#14` | 🗂️ Historial de Nombramientos | Sprint 2 | ⏳ |
-| `#15` | ✏️ Gestión de Reformas | Sprint 2 | ⏳ |
-| `#11` | 🗳️ Control de Quórum | Sprint 3 | ⏳ |
-| `#12` | ⚖️ Motor de Votaciones | Sprint 3 | ⏳ |
-| `#13` | 📋 Bitácora de Auditoría | Sprint 3 | ⏳ |
-| `#16` | 🔍 Visor de Vigencia | Sprint 3 | ⏳ |
-| `#17` | 🔏 Generador de Atestados | Sprint 3 | ⏳ |
+| `#0` | 🔐 Seguridad RBAC | Sprint 2 | ✅ |
+| `#9` | 👤 Catálogo de Asambleístas | Sprint 2 | ✅ |
+| `#10` | 📜 Jerarquía de Reglamentos | Sprint 2 | ✅ |
+| `#14` | 🗂️ Historial de Nombramientos | Sprint 2 | ✅ |
+| `#15` | ✏️ Gestión de Reformas | Sprint 2 | ✅ |
+| `#11` | 🗳️ Control de Quórum | Sprint 3 | ✅ |
+| `#12` | ⚖️ Motor de Votaciones | Sprint 3 | ✅ |
+| `#13` | 📋 Bitácora de Auditoría | Sprint 3 | ✅ |
+| `#16` | 🔍 Visor de Vigencia | Sprint 3 | ✅ |
+| `#17` | 🔏 Generador de Atestados | Sprint 3 | ✅ |
 
 ---
 
