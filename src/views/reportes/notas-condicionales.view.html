@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notas Condicionales - Sistema AIR</title>
+    <link rel="stylesheet" href="../shared/global.css">
+    <style>
+        .badge-activo   { background: #d5f5e3; color: #27ae60; }
+        .badge-inactivo { background: #f2f3f4; color: #6c757d; }
+
+        .texto-nota-preview {
+            max-width: 400px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--color-texto-suave);
+            font-size: 0.85rem;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--color-blanco);
+            border-radius: var(--radio-borde);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            padding: var(--espacio-xl);
+            width: 100%;
+            max-width: 600px;
+            margin: var(--espacio-md);
+        }
+
+        .modal-titulo {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--color-navbar);
+            margin-bottom: var(--espacio-lg);
+            padding-bottom: var(--espacio-sm);
+            border-bottom: 2px solid var(--color-borde);
+        }
+
+        .form-grupo textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .acciones-fila {
+            display: flex;
+            gap: var(--espacio-sm);
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="navbar-brand">Sistema de Gestión Legislativa <span>AIR</span></div>
+    <div class="navbar-usuario">
+        <span>👤</span>
+        <span id="nombre-usuario">Usuario</span>
+    </div>
+</nav>
+
+<div class="contenedor">
+
+    <div class="alerta alerta-error" id="alerta-error"></div>
+    <div class="alerta alerta-exito" id="alerta-exito"></div>
+
+    <!-- ENCABEZADO -->
+    <div style="margin-bottom: var(--espacio-lg);">
+        <h2 style="color: var(--color-navbar); font-size: 1.4rem;">📋 Notas Condicionales</h2>
+        <p style="color: var(--color-texto-suave); font-size: 0.9rem;">
+            Administración de notas legales que se insertan automáticamente en las certificaciones según el origen de la propuesta.
+        </p>
+    </div>
+
+    <!-- TABLA -->
+    <div class="tarjeta">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--espacio-lg);">
+            <div class="tarjeta-titulo" style="margin-bottom: 0; border-bottom: none;">Catálogo de Notas</div>
+            <button class="btn btn-primario" onclick="abrirModalCrear()">+ Nueva Nota</button>
+        </div>
+
+        <div class="tabla-contenedor">
+            <table id="tabla-notas">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Código Tipo Origen</th>
+                        <th>Descripción Interna</th>
+                        <th>Texto de la Nota</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="cuerpo-tabla">
+                    <tr>
+                        <td colspan="6" style="text-align:center; color: var(--color-texto-suave); padding: 2rem;">
+                            Cargando notas...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- MODAL CREAR / EDITAR -->
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+        <div class="modal-titulo" id="modal-titulo">Nueva Nota Condicional</div>
+
+        <input type="hidden" id="campo-id">
+
+        <div class="form-grupo">
+            <label for="campo-codigo">Código Tipo Origen *</label>
+            <input type="text" id="campo-codigo" placeholder="Ej: CI_DIRECTO, DIEZ_PORCIENTO" maxlength="50">
+        </div>
+
+        <div class="form-grupo">
+            <label for="campo-descripcion">Descripción Interna</label>
+            <input type="text" id="campo-descripcion" placeholder="Descripción corta para identificar la nota internamente">
+        </div>
+
+        <div class="form-grupo">
+            <label for="campo-texto">Texto de la Nota *</label>
+            <textarea id="campo-texto" placeholder="Texto legal completo que se insertará en la certificación..."></textarea>
+        </div>
+
+        <div class="form-grupo" id="grupo-activo" style="display:none;">
+            <label for="campo-activo">Estado</label>
+            <select id="campo-activo">
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+            </select>
+        </div>
+
+        <div class="form-acciones">
+            <button class="btn btn-secundario" onclick="cerrarModal()">Cancelar</button>
+            <button class="btn btn-primario" id="btn-guardar" onclick="guardarNota()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const token = localStorage.getItem('token')
+    let modoEdicion = false
+
+    // ── INICIALIZACIÓN ────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        cargarNotas()
+    })
+
+    // ── CARGAR NOTAS ──────────────────────────────────────────
+    async function cargarNotas() {
+        try {
+            const res = await fetch('/api/notas-condicionales', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+
+            if (!res.ok) throw new Error('Error al obtener las notas')
+
+            const datos = await res.json()
+            renderizarTabla(datos.notas)
+
+        } catch (error) {
+            mostrarError('No se pudieron cargar las notas: ' + error.message)
+        }
+    }
+
+    // ── RENDERIZAR TABLA ──────────────────────────────────────
+    function renderizarTabla(notas) {
+        const cuerpo = document.getElementById('cuerpo-tabla')
+
+        if (!notas || notas.length === 0) {
+            cuerpo.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align:center; color: var(--color-texto-suave); padding: 2rem;">
+                        No hay notas condicionales registradas.
+                    </td>
+                </tr>`
+            return
+        }
+
+        cuerpo.innerHTML = notas.map(nota => `
+            <tr>
+                <td>${nota.id_nota}</td>
+                <td><strong>${nota.codigo_tipo_origen}</strong></td>
+                <td>${nota.descripcion_interna || '—'}</td>
+                <td>
+                    <div class="texto-nota-preview" title="${escaparHtml(nota.texto_nota)}">
+                        ${escaparHtml(nota.texto_nota)}
+                    </div>
+                </td>
+                <td>
+                    <span class="badge ${nota.activo ? 'badge-activo' : 'badge-inactivo'}">
+                        ${nota.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                </td>
+                <td>
+                    <div class="acciones-fila">
+                        <button class="btn btn-secundario" onclick="abrirModalEditar(${nota.id_nota})">
+                            ✏️ Editar
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('')
+    }
+
+    // ── MODAL CREAR ───────────────────────────────────────────
+    function abrirModalCrear() {
+        modoEdicion = false
+        document.getElementById('modal-titulo').textContent = 'Nueva Nota Condicional'
+        document.getElementById('campo-id').value = ''
+        document.getElementById('campo-codigo').value = ''
+        document.getElementById('campo-descripcion').value = ''
+        document.getElementById('campo-texto').value = ''
+        document.getElementById('grupo-activo').style.display = 'none'
+        document.getElementById('modal-overlay').classList.add('visible')
+    }
+
+    // ── MODAL EDITAR ──────────────────────────────────────────
+    async function abrirModalEditar(id) {
+        try {
+            const res = await fetch('/api/notas-condicionales', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+
+            if (!res.ok) throw new Error('Error al obtener las notas')
+
+            const datos = await res.json()
+            const nota = datos.notas.find(n => n.id_nota === id)
+
+            if (!nota) {
+                mostrarError('Nota no encontrada.')
+                return
+            }
+
+            modoEdicion = true
+            document.getElementById('modal-titulo').textContent = 'Editar Nota Condicional'
+            document.getElementById('campo-id').value = nota.id_nota
+            document.getElementById('campo-codigo').value = nota.codigo_tipo_origen
+            document.getElementById('campo-descripcion').value = nota.descripcion_interna || ''
+            document.getElementById('campo-texto').value = nota.texto_nota
+            document.getElementById('campo-activo').value = nota.activo ? 'true' : 'false'
+            document.getElementById('grupo-activo').style.display = 'flex'
+            document.getElementById('modal-overlay').classList.add('visible')
+
+        } catch (error) {
+            mostrarError('No se pudo cargar la nota: ' + error.message)
+        }
+    }
+
+    // ── CERRAR MODAL ──────────────────────────────────────────
+    function cerrarModal() {
+        document.getElementById('modal-overlay').classList.remove('visible')
+    }
+
+    // ── GUARDAR NOTA ──────────────────────────────────────────
+    async function guardarNota() {
+        const id               = document.getElementById('campo-id').value
+        const codigo           = document.getElementById('campo-codigo').value.trim()
+        const descripcion      = document.getElementById('campo-descripcion').value.trim()
+        const texto            = document.getElementById('campo-texto').value.trim()
+        const activo           = document.getElementById('campo-activo').value === 'true'
+
+        if (!codigo || !texto) {
+            mostrarError('El código y el texto de la nota son obligatorios.')
+            return
+        }
+
+        const btn = document.getElementById('btn-guardar')
+        btn.disabled = true
+        btn.textContent = 'Guardando...'
+
+        try {
+            let res
+
+            if (modoEdicion) {
+                res = await fetch(`/api/notas-condicionales/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ codigo_tipo_origen: codigo, descripcion_interna: descripcion, texto_nota: texto, activo })
+                })
+            } else {
+                res = await fetch('/api/notas-condicionales', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ codigo_tipo_origen: codigo, descripcion_interna: descripcion, texto_nota: texto })
+                })
+            }
+
+            const datos = await res.json()
+
+            if (!res.ok) {
+                mostrarError(datos.error || 'Error al guardar la nota.')
+                return
+            }
+
+            mostrarExito(modoEdicion ? 'Nota actualizada correctamente.' : 'Nota creada correctamente.')
+            cerrarModal()
+            cargarNotas()
+
+        } catch (error) {
+            mostrarError('Error al guardar la nota: ' + error.message)
+        } finally {
+            btn.disabled = false
+            btn.textContent = 'Guardar'
+        }
+    }
+
+    // ── CERRAR MODAL AL HACER CLIC FUERA ─────────────────────
+    document.getElementById('modal-overlay').addEventListener('click', function(e) {
+        if (e.target === this) cerrarModal()
+    })
+
+    // ── UTILIDADES ────────────────────────────────────────────
+    function escaparHtml(texto) {
+        if (!texto) return ''
+        return texto
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+    }
+
+    function mostrarError(mensaje) {
+        const alerta = document.getElementById('alerta-error')
+        alerta.textContent = mensaje
+        alerta.classList.add('visible')
+        setTimeout(() => alerta.classList.remove('visible'), 5000)
+    }
+
+    function mostrarExito(mensaje) {
+        const alerta = document.getElementById('alerta-exito')
+        alerta.textContent = mensaje
+        alerta.classList.add('visible')
+        setTimeout(() => alerta.classList.remove('visible'), 4000)
+    }
+</script>
+
+</body>
+</html>
