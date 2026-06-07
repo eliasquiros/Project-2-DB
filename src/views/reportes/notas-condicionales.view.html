@@ -213,7 +213,7 @@
                 </td>
                 <td>
                     <div class="acciones-fila">
-                        <button class="btn btn-secundario" onclick="abrirModalEditar(${nota.id_nota})">
+                        <button class="btn btn-secundario" onclick="abrirModalEditar('${nota.id_nota}')">
                             ✏️ Editar
                         </button>
                     </div>
@@ -244,7 +244,7 @@
             if (!res.ok) throw new Error('Error al obtener las notas')
 
             const datos = await res.json()
-            const nota = datos.notas.find(n => n.id_nota === id)
+            const nota = datos.notas.find(n => String(n.id_nota) === String(id))
 
             if (!nota) {
                 mostrarError('Nota no encontrada.')
