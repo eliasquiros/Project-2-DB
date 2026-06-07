@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - Sistema AIR</title>
+    <link rel="stylesheet" href="../shared/global.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .filtro-anio {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+            flex-wrap: wrap;
+        }
+
+        .filtro-anio-izq {
+            display: flex;
+            align-items: center;
+            gap: var(--espacio-md);
+        }
+
+        .filtro-anio label {
+            font-weight: 600;
+            color: var(--color-navbar);
+            font-size: 1rem;
+        }
+
+        .filtro-anio select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            font-size: 0.95rem;
+            color: var(--color-texto);
+        }
+
+        /* Métricas rápidas */
+        .metricas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--espacio-md);
+            margin-bottom: var(--espacio-lg);
+        }
+
+        .metrica-item {
+            background: var(--color-blanco);
+            border-radius: var(--radio-borde);
+            box-shadow: var(--sombra);
+            padding: var(--espacio-md);
+            text-align: center;
+            border-top: 4px solid var(--color-primario);
+        }
+
+        .metrica-item.folios   { border-top-color: #27ae60; }
+        .metrica-item.sector   { border-top-color: #f39c12; }
+
+        .metrica-item .numero {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--color-navbar);
+            line-height: 1;
+        }
+
+        .metrica-item .etiqueta {
+            font-size: 0.8rem;
+            color: var(--color-texto-suave);
+            margin-top: 0.3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .metrica-item .sector-nombre {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--color-navbar);
+            margin-top: 0.3rem;
+        }
+
+        /* Gráficos */
+        .graficos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--espacio-lg);
+            margin-bottom: var(--espacio-lg);
+        }
+
+        @media (max-width: 768px) {
+            .graficos-grid { grid-template-columns: 1fr; }
+        }
+
+        .grafico-contenedor {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .estado-vacio {
+            text-align: center;
+            padding: 3rem;
+            color: var(--color-texto-suave);
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+    <div class="navbar-brand">Sistema de Gestión Legislativa <span>AIR</span></div>
+    <div class="navbar-usuario">
+        <span>👤</span>
+        <span id="nombre-usuario">Usuario</span>
+    </div>
+</nav>
+
+<div class="contenedor">
+
+    <div class="alerta alerta-error" id="alerta-error"></div>
+
+    <!-- ENCABEZADO -->
+    <div style="margin-bottom: var(--espacio-lg);">
+        <h2 style="color: var(--color-navbar); font-size: 1.4rem;">📊 Reportes Administrativos</h2>
+        <p style="color: var(--color-texto-suave); font-size: 0.9rem;">
+            Estadísticas generales del sistema AIR por año calendario.
+        </p>
+    </div>
+
+    <!-- FILTRO DE AÑO + BOTÓN EXPORTAR -->
+    <div class="tarjeta" style="padding: var(--espacio-md);">
+        <div class="filtro-anio">
+            <div class="filtro-anio-izq">
+                <label for="selector-anio">📅 Año:</label>
+                <select id="selector-anio" onchange="cargarEstadisticas()"></select>
+            </div>
+            <button class="btn btn-primario" onclick="exportarExcel()">
+                ⬇️ Exportar a Excel
+            </button>
+        </div>
+    </div>
+
+    <!-- MÉTRICAS RÁPIDAS -->
+    <div class="metricas-grid">
+        <div class="metrica-item">
+            <div class="numero" id="total-certificaciones">—</div>
+            <div class="etiqueta">Total Certificaciones</div>
+        </div>
+        <div class="metrica-item folios">
+            <div class="numero" id="total-folios">—</div>
+            <div class="etiqueta">Folios Emitidos</div>
+        </div>
+        <div class="metrica-item sector">
+            <div class="sector-nombre" id="sector-activo">—</div>
+            <div class="etiqueta">Sector más Activo</div>
+        </div>
+    </div>
+
+    <!-- GRÁFICOS -->
+    <div class="graficos-grid">
+
+        <!-- BARRAS: Certificaciones por mes -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">📈 Certificaciones por Mes</div>
+            <div class="grafico-contenedor">
+                <canvas id="grafico-barras"></canvas>
+            </div>
+        </div>
+
+        <!-- PASTEL: Desglose por sector -->
+        <div class="tarjeta">
+            <div class="tarjeta-titulo">🥧 Nombramientos por Sector</div>
+            <div class="grafico-contenedor">
+                <canvas id="grafico-pastel"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    // ── CONFIGURACIÓN ─────────────────────────────────────────
+    const token = localStorage.getItem('token')
+    let graficoBarras = null
+    let graficoPastel = null
+
+    // ── INICIALIZACIÓN ────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        llenarSelectorAnio()
+        cargarEstadisticas()
+    })
+
+    // Llena el selector con los últimos 5 años
+    function llenarSelectorAnio() {
+        const selector = document.getElementById('selector-anio')
+        const anioActual = new Date().getFullYear()
+
+        for (let i = anioActual; i >= anioActual - 4; i--) {
+            const opcion = document.createElement('option')
+            opcion.value = i
+            opcion.textContent = i
+            selector.appendChild(opcion)
+        }
+    }
+
+    // ── CARGA DE ESTADÍSTICAS ─────────────────────────────────
+    async function cargarEstadisticas() {
+        const anio = document.getElementById('selector-anio').value
+
+        try {
+            const res = await fetch(`/api/reportes/estadisticas?anio=${anio}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+
+            if (!res.ok) throw new Error('Error al obtener estadísticas')
+
+            const datos = await res.json()
+
+            actualizarMetricas(datos)
+            renderizarBarras(datos.porMes)
+            renderizarPastel(datos.porSector)
+
+        } catch (error) {
+            mostrarError('No se pudieron cargar las estadísticas: ' + error.message)
+        }
+    }
+
+    // ── MÉTRICAS RÁPIDAS ──────────────────────────────────────
+    function actualizarMetricas(datos) {
+        // Total certificaciones del año sumando todos los meses
+        const totalCert = datos.porMes.reduce((acc, fila) => {
+            return acc + parseInt(fila.total_certificaciones)
+        }, 0)
+        document.getElementById('total-certificaciones').textContent = totalCert
+
+        // Total folios del año
+        document.getElementById('total-folios').textContent =
+            datos.folios ? datos.folios.total_folios : 0
+
+        // Sector más activo: el primero ya viene ordenado DESC desde la vista SQL
+        if (datos.porSector.length > 0) {
+            document.getElementById('sector-activo').textContent =
+                datos.porSector[0].sector
+        } else {
+            document.getElementById('sector-activo').textContent = 'Sin datos'
+        }
+    }
+
+    // ── GRÁFICO DE BARRAS ─────────────────────────────────────
+    function renderizarBarras(porMes) {
+        const nombresMes = [
+            '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ]
+
+        // Arma array de 12 meses rellenando con 0 los que no tienen datos
+        const valores = Array(12).fill(0)
+        porMes.forEach(fila => {
+            valores[fila.mes - 1] = parseInt(fila.total_certificaciones)
+        })
+
+        const etiquetas = nombresMes.slice(1)
+
+        // Destruye el gráfico anterior si existe para evitar duplicados
+        if (graficoBarras) graficoBarras.destroy()
+
+        graficoBarras = new Chart(
+            document.getElementById('grafico-barras'),
+            {
+                type: 'bar',
+                data: {
+                    labels: etiquetas,
+                    datasets: [{
+                        label: 'Certificaciones',
+                        data: valores,
+                        backgroundColor: '#1a6fba',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        },
+                        x: {
+                            ticks: { font: { size: 10 } }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    // ── GRÁFICO DE PASTEL ─────────────────────────────────────
+    function renderizarPastel(porSector) {
+        if (graficoPastel) graficoPastel.destroy()
+
+        if (porSector.length === 0) {
+            document.getElementById('grafico-pastel').closest('.grafico-contenedor').innerHTML =
+                '<p class="estado-vacio">Sin datos de sectores para mostrar.</p>'
+            return
+        }
+
+        const etiquetas = porSector.map(f => f.sector)
+        const valores   = porSector.map(f => parseInt(f.total_nombramientos))
+        const colores   = ['#1a6fba', '#27ae60', '#f39c12', '#c0392b', '#8e44ad']
+
+        graficoPastel = new Chart(
+            document.getElementById('grafico-pastel'),
+            {
+                type: 'pie',
+                data: {
+                    labels: etiquetas,
+                    datasets: [{
+                        data: valores,
+                        backgroundColor: colores.slice(0, etiquetas.length),
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { size: 11 } }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    // ── EXPORTAR EXCEL ────────────────────────────────────────
+    async function exportarExcel() {
+        const anio = document.getElementById('selector-anio').value
+
+        try {
+            const res = await fetch(`/api/reportes/exportar?anio=${anio}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+
+            if (!res.ok) throw new Error('Error al exportar')
+
+            // Convierte la respuesta en blob y dispara la descarga
+            const blob = await res.blob()
+            const url  = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href     = url
+            link.download = `reporte-air-${anio}.xlsx`
+            link.click()
+            URL.revokeObjectURL(url)
+
+        } catch (error) {
+            mostrarError('No se pudo exportar: ' + error.message)
+        }
+    }
+
+    // ── UTILIDADES ────────────────────────────────────────────
+    function mostrarError(mensaje) {
+        const alerta = document.getElementById('alerta-error')
+        alerta.textContent = mensaje
+        alerta.classList.add('visible')
+        setTimeout(() => alerta.classList.remove('visible'), 5000)
+    }
+</script>
+
+</body>
+</html>

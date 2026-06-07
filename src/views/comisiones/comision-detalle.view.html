@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle de Comisión — Sistema AIR</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        h1, h2 { color: #1a1a2e; }
+        h2 { margin-top: 2rem; border-bottom: 2px solid #1a1a2e; padding-bottom: 0.5rem; }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .info-item label {
+            font-size: 0.8rem;
+            color: #777;
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+
+        .info-item span {
+            font-size: 1rem;
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #1a1a2e;
+            color: white;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        button {
+            padding: 0.5rem 1.5rem;
+            background: #1a1a2e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+        button:hover { background: #2a2a4e; }
+        button.secundario {
+            background: white;
+            color: #1a1a2e;
+            border: 1px solid #1a1a2e;
+            margin-right: 0.5rem;
+        }
+        button.secundario:hover { background: #f0f0f0; }
+
+        .mensaje-estado {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .error { color: #c0392b; }
+
+        select, input {
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            width: 100%;
+            margin-bottom: 0.8rem;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            color: #555;
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.activo { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .modal h3 { margin-top: 0; color: #1a1a2e; }
+
+        .acciones-modal {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="secundario" onclick="window.location.href='comision-lista.view.html'">
+        ← Volver a comisiones
+    </button>
+
+    <h1 id="titulo-comision">Cargando...</h1>
+
+    <!-- ── INFORMACIÓN GENERAL ── -->
+    <div class="card">
+        <div class="info-grid">
+            <div class="info-item">
+                <label>Tipo de comisión</label>
+                <span id="tipo-comision">—</span>
+            </div>
+            <div class="info-item">
+                <label>Fecha de creación</label>
+                <span id="fecha-creacion">—</span>
+            </div>
+            <div class="info-item">
+                <label>Estado</label>
+                <span id="estado-comision">—</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── INTEGRANTES ── -->
+    <h2>Integrantes activos</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Cédula</th>
+                    <th>Rol</th>
+                    <th>Fecha de ingreso</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpo-integrantes">
+                <tr><td colspan="4" class="mensaje-estado">Cargando...</td></tr>
+            </tbody>
+        </table>
+        <button onclick="abrirModalIntegrante()">+ Asignar integrante</button>
+    </div>
+
+    <!-- ── SESIONES ── -->
+    <h2>Sesiones de trabajo</h2>
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha y hora</th>
+                    <th>Lugar</th>
+                    <th>Asistentes</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpo-sesiones">
+                <tr><td colspan="3" class="mensaje-estado">Cargando...</td></tr>
+            </tbody>
+        </table>
+        <button onclick="abrirModalSesion()">+ Registrar sesión</button>
+    </div>
+
+    <!-- ── MODAL: ASIGNAR INTEGRANTE ── -->
+    <div class="modal-overlay" id="modal-integrante">
+        <div class="modal">
+            <h3>Asignar integrante</h3>
+
+            <div class="form-group">
+                <label>Asambleísta</label>
+                <select id="select-asambleista">
+                    <option value="">-- Seleccione --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Rol en la comisión</label>
+                <select id="select-rol">
+                    <option value="">-- Seleccione --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Fecha de ingreso</label>
+                <input type="date" id="input-fecha-ingreso" />
+            </div>
+
+            <div class="acciones-modal">
+                <button class="secundario" onclick="cerrarModalIntegrante()">Cancelar</button>
+                <button onclick="guardarIntegrante()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── MODAL: REGISTRAR SESIÓN ── -->
+    <div class="modal-overlay" id="modal-sesion">
+        <div class="modal">
+            <h3>Registrar sesión de trabajo</h3>
+
+            <div class="form-group">
+                <label>Fecha y hora</label>
+                <input type="datetime-local" id="input-fecha-hora" />
+            </div>
+
+            <div class="form-group">
+                <label>Lugar</label>
+                <input type="text" id="input-lugar" placeholder="Ej: Sala A, Edificio Central" />
+            </div>
+
+            <div class="form-group">
+                <label>Asistencia</label>
+                <div id="lista-asistencia">
+                    <p class="mensaje-estado">Cargue los integrantes primero.</p>
+                </div>
+            </div>
+
+            <div class="acciones-modal">
+                <button class="secundario" onclick="cerrarModalSesion()">Cancelar</button>
+                <button onclick="guardarSesion()">Guardar sesión</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token')
+        const params = new URLSearchParams(window.location.search)
+        const idComision = params.get('id')
+
+        // Guardamos los integrantes para reusar en el modal de sesión
+        let integrantesActuales = []
+
+        // ── CARGAR DATOS DE LA COMISIÓN ───────────────────────────────────────
+        async function cargarDetalle() {
+            try {
+                const res = await fetch(`/api/comisiones/${idComision}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Comisión no encontrada')
+
+                const comision = await res.json()
+
+                // Llenar encabezado
+                document.getElementById('titulo-comision').textContent =
+                    `🏛️ ${comision.nombre_comision}`
+                document.getElementById('tipo-comision').textContent =
+                    comision.tipo_comision
+                document.getElementById('fecha-creacion').textContent =
+                    new Date(comision.fecha_creacion).toLocaleDateString('es-CR')
+                document.getElementById('estado-comision').textContent =
+                    comision.activo ? 'ACTIVA' : 'INACTIVA'
+
+                // Llenar tabla de integrantes
+                integrantesActuales = comision.integrantes
+                renderizarIntegrantes(comision.integrantes)
+
+            } catch (error) {
+                document.getElementById('titulo-comision').textContent = 'Error'
+                console.error(error.message)
+            }
+        }
+
+        function renderizarIntegrantes(integrantes) {
+            const cuerpo = document.getElementById('cuerpo-integrantes')
+
+            if (integrantes.length === 0) {
+                cuerpo.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="mensaje-estado">
+                            No hay integrantes asignados.
+                        </td>
+                    </tr>`
+                return
+            }
+
+            cuerpo.innerHTML = ''
+            integrantes.forEach(i => {
+                const fecha = new Date(i.fecha_ingreso).toLocaleDateString('es-CR')
+                cuerpo.innerHTML += `
+                    <tr>
+                        <td>${i.nombre_asambleista}</td>
+                        <td>${i.cedula}</td>
+                        <td>${i.rol}</td>
+                        <td>${fecha}</td>
+                    </tr>`
+            })
+        }
+
+        // ── CARGAR SESIONES ───────────────────────────────────────────────────
+        async function cargarSesiones() {
+            try {
+                const res = await fetch(`/api/comisiones/${idComision}/sesiones`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+
+                if (!res.ok) throw new Error('Error al cargar sesiones')
+
+                const datos = await res.json()
+                const cuerpo = document.getElementById('cuerpo-sesiones')
+
+                if (datos.sesiones.length === 0) {
+                    cuerpo.innerHTML = `
+                        <tr>
+                            <td colspan="3" class="mensaje-estado">
+                                No hay sesiones registradas.
+                            </td>
+                        </tr>`
+                    return
+                }
+
+                cuerpo.innerHTML = ''
+                datos.sesiones.forEach(s => {
+                    const fecha = new Date(s.fecha_hora).toLocaleString('es-CR')
+                    cuerpo.innerHTML += `
+                        <tr>
+                            <td>${fecha}</td>
+                            <td>${s.lugar || '—'}</td>
+                            <td>${s.total_asistentes}</td>
+                        </tr>`
+                })
+
+            } catch (error) {
+                document.getElementById('cuerpo-sesiones').innerHTML = `
+                    <tr>
+                        <td colspan="3" class="mensaje-estado error">
+                            Error: ${error.message}
+                        </td>
+                    </tr>`
+            }
+        }
+
+        // ── MODAL INTEGRANTE ──────────────────────────────────────────────────
+        async function abrirModalIntegrante() {
+            // Cargar asambleístas y roles para los selectores
+            const [resAsam, resCat] = await Promise.all([
+                fetch('/api/asambleistas', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }),
+                fetch('/api/catalogos/roles-comision', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+            ])
+
+            const asambleistas = await resAsam.json()
+            const roles = await resCat.json()
+
+            const selectAsam = document.getElementById('select-asambleista')
+            selectAsam.innerHTML = '<option value="">-- Seleccione --</option>'
+            asambleistas.forEach(a => {
+                selectAsam.innerHTML +=
+                    `<option value="${a.asambleista_id}">${a.nombre} (${a.cedula})</option>`
+            })
+
+            const selectRol = document.getElementById('select-rol')
+            selectRol.innerHTML = '<option value="">-- Seleccione --</option>'
+            roles.forEach(r => {
+                selectRol.innerHTML +=
+                    `<option value="${r.id_item}">${r.nombre}</option>`
+            })
+
+            document.getElementById('modal-integrante').classList.add('activo')
+        }
+
+        function cerrarModalIntegrante() {
+            document.getElementById('modal-integrante').classList.remove('activo')
+        }
+
+        async function guardarIntegrante() {
+            const id_asambleista = document.getElementById('select-asambleista').value
+            const id_rol_comision = document.getElementById('select-rol').value
+            const fecha_ingreso = document.getElementById('input-fecha-ingreso').value
+
+            if (!id_asambleista || !id_rol_comision || !fecha_ingreso) {
+                alert('Todos los campos son obligatorios')
+                return
+            }
+
+            try {
+                const res = await fetch(`/api/comisiones/${idComision}/integrantes`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id_asambleista, id_rol_comision, fecha_ingreso })
+                })
+
+                const datos = await res.json()
+
+                if (!res.ok) {
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                cerrarModalIntegrante()
+                cargarDetalle()
+
+            } catch (error) {
+                alert('Error al guardar: ' + error.message)
+            }
+        }
+
+        // ── MODAL SESIÓN ──────────────────────────────────────────────────────
+        function abrirModalSesion() {
+            // Generar checkboxes de asistencia con los integrantes actuales
+            const listaAsistencia = document.getElementById('lista-asistencia')
+
+            if (integrantesActuales.length === 0) {
+                listaAsistencia.innerHTML =
+                    '<p class="mensaje-estado">Asigná integrantes primero.</p>'
+            } else {
+                listaAsistencia.innerHTML = ''
+                integrantesActuales.forEach(i => {
+                    listaAsistencia.innerHTML += `
+                        <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+                            <input type="checkbox" id="asist-${i.asambleista_id}"
+                                value="${i.asambleista_id}" checked />
+                            <label for="asist-${i.asambleista_id}">
+                                ${i.nombre_asambleista}
+                            </label>
+                        </div>`
+                })
+            }
+
+            document.getElementById('modal-sesion').classList.add('activo')
+        }
+
+        function cerrarModalSesion() {
+            document.getElementById('modal-sesion').classList.remove('activo')
+        }
+
+        async function guardarSesion() {
+            const fecha_hora = document.getElementById('input-fecha-hora').value
+            const lugar = document.getElementById('input-lugar').value
+
+            if (!fecha_hora) {
+                alert('La fecha y hora son obligatorias')
+                return
+            }
+
+            // Construir array de asistencias desde los checkboxes
+            // Los marcados = PRESENTE, los desmarcados = AUSENTE
+            const asistencias = integrantesActuales.map(i => {
+                const checkbox = document.getElementById(`asist-${i.asambleista_id}`)
+                return {
+                    id_asambleista: i.asambleista_id,
+                    // El id_estado_asistencia se resuelve en el backend
+                    // enviamos presente: true/false y el controlador busca el ID
+                    presente: checkbox ? checkbox.checked : false
+                }
+            })
+
+            try {
+                const res = await fetch(`/api/comisiones/${idComision}/sesiones`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ fecha_hora, lugar, asistencias })
+                })
+
+                const datos = await res.json()
+
+                if (!res.ok) {
+                    alert('Error: ' + datos.error)
+                    return
+                }
+
+                cerrarModalSesion()
+                cargarSesiones()
+
+            } catch (error) {
+                alert('Error al guardar: ' + error.message)
+            }
+        }
+
+        // ── INICIALIZACIÓN ────────────────────────────────────────────────────
+        if (!idComision) {
+            document.getElementById('titulo-comision').textContent = 'ID no especificado'
+        } else {
+            cargarDetalle()
+            cargarSesiones()
+        }
+    </script>
+
+</body>
+</html>
