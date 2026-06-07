@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="stylesheet" href="/shared/global.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propuesta de Reforma - AIR</title>
+    <style>
+        body {
+            background: #eef2f6;
+            min-height: 100vh;
+        }
+
+        .propuesta-shell {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .propuesta-topbar {
+            min-height: 52px;
+            padding: 0.45rem 0.9rem;
+            background: #0b3763;
+            color: var(--color-blanco);
+            border-bottom: 4px solid #05233f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .marca {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+
+        .marca-logo {
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            padding: 0.16rem 0.45rem;
+            font-family: Georgia, serif;
+            font-size: 1.25rem;
+            letter-spacing: 0.03rem;
+        }
+
+        .marca-texto strong,
+        .marca-texto span {
+            display: block;
+            line-height: 1.1;
+        }
+
+        .marca-texto span,
+        .usuario-barra {
+            font-size: 0.78rem;
+            opacity: 0.9;
+        }
+
+        /* ── Layout principal ──────────────────────────────── */
+        .propuesta-contenido {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1.2rem 1.6rem 2rem;
+        }
+
+        .formulario-reforma {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: var(--color-blanco);
+            border: 1px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            box-shadow: var(--sombra);
+        }
+
+        .formulario-header {
+            background: #0b3763;
+            color: var(--color-blanco);
+            padding: 0.75rem 1.2rem;
+            border-radius: var(--radio-borde) var(--radio-borde) 0 0;
+        }
+
+        .formulario-header h1 {
+            font-size: 1.05rem;
+            margin-bottom: 0.15rem;
+        }
+
+        .formulario-header .referencia {
+            font-size: 0.82rem;
+            opacity: 0.85;
+        }
+
+        .formulario-body {
+            padding: 1.2rem 1.4rem 1.4rem;
+        }
+
+        /* ── Secciones del formulario ──────────────────────── */
+        .seccion {
+            margin-bottom: 1.4rem;
+        }
+
+        .seccion-titulo {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: #0b3763;
+            text-transform: uppercase;
+            letter-spacing: 0.03rem;
+            margin-bottom: 0.55rem;
+            padding-bottom: 0.35rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* ── Proponentes (tags) ────────────────────────────── */
+        .proponentes-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            align-items: center;
+            min-height: 38px;
+            padding: 0.35rem 0.5rem;
+            border: 1px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            background: var(--color-blanco);
+            cursor: text;
+        }
+
+        .proponentes-container:focus-within {
+            border-color: var(--color-primario);
+            box-shadow: 0 0 0 3px rgba(26, 111, 186, 0.15);
+        }
+
+        .tag-proponente {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #d9ecff;
+            color: #0b3763;
+            font-size: 0.82rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 14px;
+            font-weight: 500;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.92); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .tag-proponente .tag-cerrar {
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.9rem;
+            line-height: 1;
+            color: #1a6fba;
+            transition: color 0.15s;
+        }
+
+        .tag-proponente .tag-cerrar:hover {
+            color: var(--color-error);
+        }
+
+        .proponente-buscador {
+            border: none;
+            outline: none;
+            font-size: 0.85rem;
+            flex: 1;
+            min-width: 120px;
+            padding: 0.15rem 0;
+            background: transparent;
+        }
+
+        .proponente-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            max-height: 200px;
+            overflow-y: auto;
+            background: var(--color-blanco);
+            border: 1px solid var(--color-borde);
+            border-top: none;
+            border-radius: 0 0 var(--radio-borde) var(--radio-borde);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+            z-index: 50;
+            display: none;
+        }
+
+        .proponente-dropdown.visible {
+            display: block;
+        }
+
+        .proponente-opcion {
+            padding: 0.45rem 0.7rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.12s;
+        }
+
+        .proponente-opcion:hover {
+            background: #edf4fb;
+        }
+
+        .proponente-opcion .cedula {
+            font-size: 0.75rem;
+            color: var(--color-texto-suave);
+            margin-left: 0.35rem;
+        }
+
+        .proponente-wrapper {
+            position: relative;
+        }
+
+        /* ── Modalidad (tabs) ─────────────────────────────── */
+        .modalidad-tabs {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            overflow: hidden;
+            width: fit-content;
+        }
+
+        .modalidad-tab {
+            padding: 0.45rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: var(--color-blanco);
+            border: none;
+            cursor: pointer;
+            color: var(--color-texto-suave);
+            transition: all 0.2s;
+            border-right: 1px solid var(--color-borde);
+        }
+
+        .modalidad-tab:last-child {
+            border-right: none;
+        }
+
+        .modalidad-tab.activa {
+            background: #0b3763;
+            color: var(--color-blanco);
+        }
+
+        .modalidad-tab:hover:not(.activa) {
+            background: #edf4fb;
+        }
+
+        /* ── Árbol de selección (checkboxes) ───────────────── */
+        .arbol-seleccion {
+            border: 1px solid var(--color-borde);
+            border-radius: var(--radio-borde);
+            padding: 0.6rem 0.8rem;
+            max-height: 260px;
+            overflow-y: auto;
+            background: #fafbfc;
+            font-size: 0.84rem;
+        }
+
+        .arbol-seleccion .nodo-check {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.15rem 0;
+        }
+
+        .arbol-seleccion .nodo-check input[type="checkbox"] {
+            accent-color: #0b3763;
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+        }
+
+        .arbol-seleccion .nodo-check label {
+            cursor: pointer;
+            font-weight: 400;
+            color: var(--color-texto);
+        }
+
+        .arbol-seleccion .nodo-check.nivel-titulo label {
+            font-weight: 700;
+            color: #0b3763;
+        }
+
+        .arbol-seleccion .nodo-check.nivel-capitulo label {
+            font-weight: 600;
+            color: #1f2d3d;
+        }
+
+        .arbol-seleccion .indent-1 { margin-left: 0; }
+        .arbol-seleccion .indent-2 { margin-left: 1.2rem; }
+        .arbol-seleccion .indent-3 { margin-left: 2.4rem; }
+        .arbol-seleccion .indent-4 { margin-left: 3.6rem; }
+        .arbol-seleccion .indent-5 { margin-left: 4.8rem; }
+
+        .arbol-toggle {
+            cursor: pointer;
+            font-size: 0.7rem;
+            width: 14px;
+            display: inline-flex;
+            justify-content: center;
+            color: #445568;
+            user-select: none;
+        }
+
+        /* ── Área de texto propuesto ───────────────────────── */
+        .cuerpo-propuesta-area {
+            width: 100%;
+            min-height: 120px;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        /* ── Acciones del formulario ──────────────────────── */
+        .form-acciones-propuesta {
+            display: flex;
+            gap: 0.6rem;
+            justify-content: flex-end;
+            padding-top: 1rem;
+            border-top: 1px solid var(--color-borde);
+            margin-top: 1.2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-exito {
+            background: var(--color-exito);
+            color: var(--color-blanco);
+        }
+
+        .btn-exito:hover {
+            background: #219a52;
+        }
+
+        /* ── Lista de propuestas existentes ────────────────── */
+        .propuestas-lista {
+            max-width: 1100px;
+            margin: 1.4rem auto 0;
+        }
+
+        .propuestas-lista .tarjeta-titulo {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .tabla-propuestas {
+            font-size: 0.85rem;
+        }
+
+        /* ── Modal de detalle ─────────────────────────────── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-panel {
+            background: var(--color-blanco);
+            border-radius: var(--radio-borde);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            width: min(720px, 92vw);
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 1.4rem;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1.1rem;
+            color: #0b3763;
+        }
+
+        .modal-cerrar {
+            background: none;
+            border: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+            color: var(--color-texto-suave);
+            padding: 0.2rem 0.4rem;
+        }
+
+        .detalle-campo {
+            margin-bottom: 0.7rem;
+            font-size: 0.9rem;
+        }
+
+        .detalle-campo b {
+            color: var(--color-texto-suave);
+            font-weight: 600;
+            margin-right: 0.3rem;
+        }
+
+        .detalle-seccion {
+            margin-top: 1rem;
+            padding-top: 0.7rem;
+            border-top: 1px solid var(--color-borde);
+        }
+
+        .detalle-seccion h3 {
+            font-size: 0.9rem;
+            color: #0b3763;
+            margin-bottom: 0.4rem;
+        }
+
+        .chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.3rem;
+        }
+
+        .chip {
+            background: #d9ecff;
+            color: #0b3763;
+            padding: 0.2rem 0.55rem;
+            border-radius: 14px;
+            font-size: 0.78rem;
+            font-weight: 500;
+        }
+
+        .aviso-arbol {
+            text-align: center;
+            color: var(--color-texto-suave);
+            font-size: 0.85rem;
+            padding: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .propuesta-contenido { padding: 0.8rem; }
+            .formulario-body { padding: 0.8rem; }
+            .usuario-barra { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <main class="propuesta-shell">
+        <header class="propuesta-topbar">
+            <div class="marca">
+                <div class="marca-logo">TEC</div>
+                <div class="marca-texto">
+                    <strong>TEC - AIR: Propuesta de Reforma</strong>
+                    <span>Asamblea Institucional Representativa</span>
+                </div>
+            </div>
+            <div class="usuario-barra" id="usuario-barra">Sistema AIR</div>
+        </header>
+
+        <div class="propuesta-contenido">
+            <!-- ═══ Alertas globales ═══ -->
+            <div id="alerta-global" class="alerta" style="max-width:1100px;margin:0 auto 0.8rem;"></div>
+
+            <!-- ═══ FORMULARIO DE PROPUESTA DE REFORMA ═══ -->
+            <div class="formulario-reforma" id="formulario-reforma">
+                <div class="formulario-header">
+                    <h1>FORMULARIO DE PROPUESTA DE REFORMA</h1>
+                    <div class="referencia" id="referencia-articulo">Seleccione un reglamento para iniciar</div>
+                </div>
+
+                <div class="formulario-body">
+                    <!-- Reglamento y Título -->
+                    <div class="seccion">
+                        <div class="seccion-titulo">Identificación de la Propuesta</div>
+                        <div class="grid-2">
+                            <div class="form-grupo">
+                                <label for="sel-reglamento">Reglamento Base</label>
+                                <select id="sel-reglamento">
+                                    <option value="">Cargando reglamentos...</option>
+                                </select>
+                            </div>
+                            <div class="form-grupo">
+                                <label for="input-titulo">Título de la Propuesta *</label>
+                                <input type="text" id="input-titulo"
+                                       placeholder="Ingrese un título descriptivo su reforma y atribuciones...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Proponentes -->
+                    <div class="seccion">
+                        <div class="seccion-titulo">Gestión de Proponentes</div>
+                        <div class="form-grupo">
+                            <label>Proponentes (Múltiple) *</label>
+                            <div class="proponente-wrapper">
+                                <div class="proponentes-container" id="proponentes-container">
+                                    <input type="text" class="proponente-buscador" id="proponente-buscador"
+                                           placeholder="Buscar asambleísta por nombre..." autocomplete="off">
+                                </div>
+                                <div class="proponente-dropdown" id="proponente-dropdown"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modalidad y Ámbito -->
+                    <div class="seccion">
+                        <div class="seccion-titulo">Modalidad y Ámbito de Aplicación</div>
+                        <div class="form-grupo">
+                            <label>Modalidad de Reforma</label>
+                            <div class="modalidad-tabs" id="modalidad-tabs">
+                                <button type="button" class="modalidad-tab activa" data-valor="SUSTITUTIVO">Texto Sustitutivo</button>
+                                <button type="button" class="modalidad-tab" data-valor="PARCIAL">Modificación Parcial</button>
+                            </div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="form-grupo">
+                                <label>Ámbito de Aplicación (Árbol) *</label>
+                                <div class="arbol-seleccion" id="arbol-seleccion">
+                                    <p class="aviso-arbol">Seleccione un reglamento para cargar el árbol normativo.</p>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="form-grupo">
+                                    <label for="textarea-justificacion">Resumen y Justificación</label>
+                                    <textarea id="textarea-justificacion" class="cuerpo-propuesta-area"
+                                              placeholder="Describa el cambio propuesto y su impacto legal/técnico..."></textarea>
+                                </div>
+                                <div class="form-grupo">
+                                    <label for="input-link-doc">Link Documentación Respaldo (URL)</label>
+                                    <input type="url" id="input-link-doc" placeholder="https://...">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Control de flujo -->
+                    <div class="seccion">
+                        <div class="seccion-titulo">Control de Flujo</div>
+                        <div class="grid-3">
+                            <div class="form-grupo">
+                                <label for="sel-etapa">Etapa del Proceso *</label>
+                                <select id="sel-etapa">
+                                    <option value="">Cargando...</option>
+                                </select>
+                            </div>
+                            <div class="form-grupo">
+                                <label for="sel-mayoria">Tipo de Mayoría Requerida *</label>
+                                <select id="sel-mayoria">
+                                    <option value="">Cargando...</option>
+                                </select>
+                            </div>
+                            <div class="form-grupo">
+                                <label for="input-codigo-air">Código AIR (se asigna al aprobar)</label>
+                                <input type="text" id="input-codigo-air" placeholder="DAIR-000-0000" disabled>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div class="form-acciones-propuesta">
+                        <button type="button" class="btn btn-secundario" onclick="limpiarFormulario()">Cancelar</button>
+                        <button type="button" class="btn btn-primario" id="btn-borrador" onclick="guardarBorrador()">Guardar Borrador</button>
+                        <button type="button" class="btn btn-exito" id="btn-presentar" onclick="validarYPresentar()">Validar y Presentar Propuesta</button>
+                    </div>
+                </div>
+            </div>
+
+
+
+    <!-- ═══ MODAL DE DETALLE ═══ -->
+    <div class="modal-overlay" id="modal-detalle">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <h2 id="modal-titulo">Detalle de Propuesta</h2>
+                <button class="modal-cerrar" onclick="cerrarModal()">✕</button>
+            </div>
+            <div id="modal-contenido"></div>
+        </div>
+    </div>
+
+    <script>
+        // ── Estado global ────────────────────────────────────────
+        const token = localStorage.getItem('token')
+        let catalogos = {}
+        let asambleistasDisponibles = []
+        let proponentesSeleccionados = []  // [{ id, nombre }]
+        let arbolCargado = []
+        let modalidadActual = 'SUSTITUTIVO'
+
+        // ── Inicialización ───────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', async () => {
+            cargarUsuario()
+            await cargarCatalogos()
+            await cargarAsambleistas()
+            cargarPropuestas()
+            initModalidadTabs()
+            initProponenteBuscador()
+        })
+
+        // ── Cargar catálogos ─────────────────────────────────────
+        async function cargarCatalogos() {
+            try {
+                const res = await fetchAPI('/api/propuestas/catalogos')
+                catalogos = res
+
+                llenarSelect('sel-reglamento', catalogos.reglamentos, 'id_reglamento',
+                    r => `${r.nombre_normativa} (${r.sigla})`)
+                llenarSelect('sel-etapa', catalogos.etapas, 'id_item', e => e.nombre)
+                llenarSelect('sel-mayoria', catalogos.tiposMayoria, 'id_item', e => e.nombre)
+
+                // Al cambiar reglamento, cargar árbol
+                document.getElementById('sel-reglamento').addEventListener('change', cargarArbolReglamento)
+            } catch (error) {
+                mostrarAlerta('Error al cargar catálogos: ' + error.message, 'error')
+            }
+        }
+
+        // ── Cargar asambleístas ──────────────────────────────────
+        async function cargarAsambleistas() {
+            try {
+                asambleistasDisponibles = await fetchAPI('/api/asambleistas')
+            } catch (error) {
+                console.error('Error al cargar asambleístas:', error.message)
+            }
+        }
+
+        // ── Cargar árbol del reglamento seleccionado ─────────────
+        async function cargarArbolReglamento() {
+            const id = document.getElementById('sel-reglamento').value
+            const container = document.getElementById('arbol-seleccion')
+
+            if (!id) {
+                container.innerHTML = '<p class="aviso-arbol">Seleccione un reglamento para cargar el árbol normativo.</p>'
+                arbolCargado = []
+                return
+            }
+
+            container.innerHTML = '<p class="aviso-arbol">Cargando estructura normativa...</p>'
+
+            try {
+                const arbol = await fetchAPI(`/api/reglamentos/${id}/arbol`)
+                arbolCargado = arbol
+                renderizarArbolCheckbox(arbol, container)
+
+                // Actualizar la referencia del header
+                const reglamento = catalogos.reglamentos.find(r => String(r.id_reglamento) === String(id))
+                if (reglamento) {
+                    document.getElementById('referencia-articulo').textContent =
+                        `Reglamento de Referencia: ${reglamento.nombre_normativa}`
+                }
+            } catch (error) {
+                if (error.message.includes('404')) {
+                    container.innerHTML = '<p class="aviso-arbol">Este reglamento no tiene elementos registrados.</p>'
+                } else {
+                    container.innerHTML = `<p class="aviso-arbol" style="color:var(--color-error)">Error: ${error.message}</p>`
+                }
+            }
+        }
+
+        // ── Renderizar árbol con checkboxes ──────────────────────
+        function renderizarArbolCheckbox(nodos, container) {
+            container.innerHTML = ''
+            nodos.forEach(nodo => renderNodoCheck(nodo, container, 1))
+        }
+
+        function renderNodoCheck(nodo, parent, depth) {
+            const tieneHijos = nodo.hijos && nodo.hijos.length > 0
+            const esContenedor = esNodoContenedor(nodo)
+            const indent = `indent-${Math.min(depth, 5)}`
+
+            // Wrapper del nodo
+            const wrapper = document.createElement('div')
+
+            // Header con checkbox
+            const row = document.createElement('div')
+            row.className = `nodo-check ${indent} ${esContenedor ? 'nivel-' + normalizar(nodo.nivel) : ''}`
+
+            // Toggle para contenedores
+            if (tieneHijos) {
+                const toggle = document.createElement('span')
+                toggle.className = 'arbol-toggle'
+                toggle.textContent = '▸'
+                toggle.addEventListener('click', () => {
+                    const hijosDiv = wrapper.querySelector('.hijos-check')
+                    if (hijosDiv) {
+                        const collapsed = hijosDiv.style.display === 'none'
+                        hijosDiv.style.display = collapsed ? 'block' : 'none'
+                        toggle.textContent = collapsed ? '▾' : '▸'
+                    }
+                })
+                row.appendChild(toggle)
+            }
+
+            const checkbox = document.createElement('input')
+            checkbox.type = 'checkbox'
+            checkbox.id = `check-elem-${nodo.id_elemento}`
+            checkbox.value = nodo.id_elemento
+            checkbox.dataset.etiqueta = nodo.numero_etiqueta || ''
+            checkbox.dataset.nivel = nodo.nivel || ''
+            row.appendChild(checkbox)
+
+            const label = document.createElement('label')
+            label.htmlFor = `check-elem-${nodo.id_elemento}`
+            label.textContent = obtenerEtiqueta(nodo)
+            row.appendChild(label)
+
+            wrapper.appendChild(row)
+
+            // Hijos
+            if (tieneHijos) {
+                const hijosDiv = document.createElement('div')
+                hijosDiv.className = 'hijos-check'
+                hijosDiv.style.display = 'none'
+                nodo.hijos.forEach(hijo => renderNodoCheck(hijo, hijosDiv, depth + 1))
+                wrapper.appendChild(hijosDiv)
+            }
+
+            parent.appendChild(wrapper)
+        }
+
+        function obtenerEtiqueta(nodo) {
+            const etiqueta = nodo.numero_etiqueta || ''
+            const texto = (nodo.contenido_texto || '').substring(0, 80)
+            if (esNodoContenedor(nodo) && texto) return `${etiqueta}: ${texto}`
+            return etiqueta || texto || 'Elemento'
+        }
+
+        function esNodoContenedor(nodo) {
+            const nivel = normalizar(nodo.nivel)
+            return nivel.includes('titulo') || nivel.includes('capitulo')
+        }
+
+        function normalizar(texto) {
+            return (texto || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+        }
+
+        // ── Tabs de modalidad ────────────────────────────────────
+        function initModalidadTabs() {
+            document.querySelectorAll('.modalidad-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.modalidad-tab').forEach(t => t.classList.remove('activa'))
+                    tab.classList.add('activa')
+                    modalidadActual = tab.dataset.valor
+                })
+            })
+        }
+
+        // ── Buscador de proponentes ──────────────────────────────
+        function initProponenteBuscador() {
+            const input = document.getElementById('proponente-buscador')
+            const dropdown = document.getElementById('proponente-dropdown')
+
+            input.addEventListener('input', () => {
+                const query = input.value.trim().toLowerCase()
+                if (query.length < 2) {
+                    dropdown.classList.remove('visible')
+                    return
+                }
+
+                const idsYaSeleccionados = proponentesSeleccionados.map(p => p.id)
+                const filtrados = asambleistasDisponibles
+                    .filter(a =>
+                        !idsYaSeleccionados.includes(a.asambleista_id) &&
+                        (a.nombre.toLowerCase().includes(query) || (a.cedula || '').includes(query))
+                    )
+                    .slice(0, 8)
+
+                if (filtrados.length === 0) {
+                    dropdown.innerHTML = '<div class="proponente-opcion" style="color:var(--color-texto-suave)">Sin resultados</div>'
+                } else {
+                    dropdown.innerHTML = filtrados.map(a => `
+                        <div class="proponente-opcion" data-id="${a.asambleista_id}" data-nombre="${escaparHTML(a.nombre)}">
+                            ${escaparHTML(a.nombre)}
+                            <span class="cedula">${a.cedula || ''}</span>
+                        </div>
+                    `).join('')
+                }
+                dropdown.classList.add('visible')
+            })
+
+            // Click en opción del dropdown
+            dropdown.addEventListener('click', (e) => {
+                const opcion = e.target.closest('.proponente-opcion')
+                if (!opcion || !opcion.dataset.id) return
+
+                agregarProponente(parseInt(opcion.dataset.id), opcion.dataset.nombre)
+                input.value = ''
+                dropdown.classList.remove('visible')
+            })
+
+            // Cerrar dropdown al clickear afuera
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.proponente-wrapper')) {
+                    dropdown.classList.remove('visible')
+                }
+            })
+        }
+
+        function agregarProponente(id, nombre) {
+            if (proponentesSeleccionados.some(p => p.id === id)) return
+
+            proponentesSeleccionados.push({ id, nombre })
+            renderizarProponentes()
+        }
+
+        function removerProponente(id) {
+            proponentesSeleccionados = proponentesSeleccionados.filter(p => p.id !== id)
+            renderizarProponentes()
+        }
+
+        function renderizarProponentes() {
+            const container = document.getElementById('proponentes-container')
+            const input = document.getElementById('proponente-buscador')
+
+            // Eliminar tags anteriores
+            container.querySelectorAll('.tag-proponente').forEach(t => t.remove())
+
+            // Insertar tags antes del input
+            proponentesSeleccionados.forEach(p => {
+                const tag = document.createElement('span')
+                tag.className = 'tag-proponente'
+                tag.innerHTML = `${escaparHTML(p.nombre)} <span class="tag-cerrar" data-id="${p.id}">×</span>`
+                container.insertBefore(tag, input)
+            })
+
+            // Listener para remover
+            container.querySelectorAll('.tag-cerrar').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation()
+                    removerProponente(parseInt(btn.dataset.id))
+                })
+            })
+        }
+
+        // ── Guardar Borrador ─────────────────────────────────────
+        async function guardarBorrador() {
+            const datos = recopilarDatosFormulario()
+            if (!datos) return
+
+            try {
+                setBotonesDisabled(true)
+                const resultado = await fetchAPI('/api/propuestas/borrador', {
+                    method: 'POST',
+                    body: JSON.stringify(datos)
+                })
+                mostrarAlerta('Borrador guardado exitosamente. ID: ' + resultado.propuesta.id_propuesta, 'exito')
+                limpiarFormulario()
+                cargarPropuestas()
+            } catch (error) {
+                mostrarAlerta('Error al guardar borrador: ' + error.message, 'error')
+            } finally {
+                setBotonesDisabled(false)
+            }
+        }
+
+        // ── Validar y Presentar ──────────────────────────────────
+        async function validarYPresentar() {
+            const datos = recopilarDatosFormulario()
+            if (!datos) return
+
+            // Validaciones extra para presentar
+            if (!datos.elementos_afectados || datos.elementos_afectados.length === 0) {
+                mostrarAlerta('Para presentar la propuesta debe seleccionar al menos un elemento normativo del árbol.', 'error')
+                return
+            }
+
+            try {
+                setBotonesDisabled(true)
+                const resultado = await fetchAPI('/api/propuestas/presentar', {
+                    method: 'POST',
+                    body: JSON.stringify(datos)
+                })
+                mostrarAlerta('Propuesta presentada exitosamente. Estado: Pendiente de Revisión. ID: ' + resultado.propuesta.id_propuesta, 'exito')
+                limpiarFormulario()
+                cargarPropuestas()
+            } catch (error) {
+                mostrarAlerta('Error al presentar propuesta: ' + error.message, 'error')
+            } finally {
+                setBotonesDisabled(false)
+            }
+        }
+
+        // ── Recopilar datos del formulario ───────────────────────
+        function recopilarDatosFormulario() {
+            const titulo = document.getElementById('input-titulo').value.trim()
+            const id_reglamento_base = document.getElementById('sel-reglamento').value || null
+            const id_etapa_propuesta = document.getElementById('sel-etapa').value
+            const id_tipo_mayoria_requerida = document.getElementById('sel-mayoria').value
+            const justificacion = document.getElementById('textarea-justificacion').value.trim()
+            const link_doc = document.getElementById('input-link-doc').value.trim()
+
+            // Validaciones
+            if (!titulo) {
+                mostrarAlerta('El título de la propuesta es obligatorio.', 'error')
+                return null
+            }
+            if (!id_etapa_propuesta) {
+                mostrarAlerta('Debe seleccionar la etapa del proceso.', 'error')
+                return null
+            }
+            if (!id_tipo_mayoria_requerida) {
+                mostrarAlerta('Debe seleccionar el tipo de mayoría requerida.', 'error')
+                return null
+            }
+            if (proponentesSeleccionados.length === 0) {
+                mostrarAlerta('Debe agregar al menos un proponente.', 'error')
+                return null
+            }
+
+            // Recopilar elementos seleccionados del árbol
+            const checkboxes = document.querySelectorAll('#arbol-seleccion input[type="checkbox"]:checked')
+            const elementos_afectados = Array.from(checkboxes).map(cb => ({
+                id_elemento: parseInt(cb.value),
+                modalidad_reforma: modalidadActual,
+                cuerpo_propuesta: justificacion || null,
+                link_documentacion: link_doc || null
+            }))
+
+            return {
+                titulo,
+                id_reglamento_base: id_reglamento_base ? parseInt(id_reglamento_base) : null,
+                id_etapa_propuesta: parseInt(id_etapa_propuesta),
+                id_tipo_mayoria_requerida: parseInt(id_tipo_mayoria_requerida),
+                texto_sustitutivo: modalidadActual === 'SUSTITUTIVO' ? justificacion : null,
+                proponentes: proponentesSeleccionados.map(p => p.id),
+                elementos_afectados
+            }
+        }
+
+        // ── Cargar lista de propuestas existentes ────────────────
+        async function cargarPropuestas() {
+            const tbody = document.getElementById('propuestas-tbody')
+            try {
+                const propuestas = await fetchAPI('/api/propuestas')
+                if (propuestas.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.2rem;color:var(--color-texto-suave);">No hay propuestas registradas.</td></tr>'
+                    return
+                }
+
+                tbody.innerHTML = propuestas.map(p => `
+                    <tr>
+                        <td>${p.id_propuesta}</td>
+                        <td>${escaparHTML(p.titulo)}</td>
+                        <td>${escaparHTML(p.reglamento || '—')}</td>
+                        <td>${escaparHTML(p.etapa)}</td>
+                        <td><span class="badge ${claseBadge(p.estado)}">${escaparHTML(p.estado)}</span></td>
+                        <td>${escaparHTML(p.tipo_mayoria)}</td>
+                        <td>
+                            <button class="btn btn-secundario btn-compacto" onclick="verDetalle(${p.id_propuesta})">Ver</button>
+                        </td>
+                    </tr>
+                `).join('')
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--color-error);padding:1rem;">Error: ${error.message}</td></tr>`
+            }
+        }
+
+        function claseBadge(estado) {
+            const mapa = {
+                'Borrador': 'badge-pendiente',
+                'Pendiente de Revisión': 'badge-discusion',
+                'En Discusión': 'badge-discusion',
+                'Aprobada': 'badge-aprobada',
+                'Rechazada': 'badge-rechazada'
+            }
+            return mapa[estado] || 'badge-pendiente'
+        }
+
+        // ── Ver detalle de una propuesta ─────────────────────────
+        async function verDetalle(id) {
+            try {
+                const p = await fetchAPI(`/api/propuestas/${id}`)
+                const contenido = document.getElementById('modal-contenido')
+                document.getElementById('modal-titulo').textContent = `Propuesta #${p.id_propuesta}`
+
+                let html = `
+                    <div class="detalle-campo"><b>Título:</b> ${escaparHTML(p.titulo)}</div>
+                    <div class="detalle-campo"><b>Reglamento:</b> ${escaparHTML(p.reglamento || '—')}</div>
+                    <div class="detalle-campo"><b>Etapa:</b> ${escaparHTML(p.etapa)}</div>
+                    <div class="detalle-campo"><b>Estado:</b> <span class="badge ${claseBadge(p.estado)}">${escaparHTML(p.estado)}</span></div>
+                    <div class="detalle-campo"><b>Tipo de Mayoría:</b> ${escaparHTML(p.tipo_mayoria)}</div>
+                    <div class="detalle-campo"><b>Código AIR:</b> ${escaparHTML(p.codigo_air || 'Pendiente')}</div>
+                `
+
+                if (p.texto_sustitutivo) {
+                    html += `<div class="detalle-campo"><b>Texto sustitutivo / Justificación:</b><br><div style="background:#f8f9fa;padding:0.6rem;border-radius:4px;margin-top:0.3rem;font-size:0.88rem;white-space:pre-wrap;">${escaparHTML(p.texto_sustitutivo)}</div></div>`
+                }
+
+                // Proponentes
+                if (p.proponentes && p.proponentes.length > 0) {
+                    html += `
+                        <div class="detalle-seccion">
+                            <h3>Proponentes</h3>
+                            <div class="chip-list">
+                                ${p.proponentes.map(pr => `<span class="chip">${escaparHTML(pr.nombre)} (${pr.cedula || ''})</span>`).join('')}
+                            </div>
+                        </div>
+                    `
+                }
+
+                // Elementos afectados
+                if (p.elementos_afectados && p.elementos_afectados.length > 0) {
+                    html += `
+                        <div class="detalle-seccion">
+                            <h3>Elementos Normativos Afectados</h3>
+                            ${p.elementos_afectados.map(e => `
+                                <div style="margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f8f9fa;border-radius:4px;">
+                                    <div><b>${escaparHTML(e.nivel)}:</b> ${escaparHTML(e.numero_etiqueta)}</div>
+                                    <div style="font-size:0.82rem;color:var(--color-texto-suave);">Modalidad: ${escaparHTML(e.modalidad_reforma)}</div>
+                                    ${e.cuerpo_propuesta ? `<div style="font-size:0.85rem;margin-top:0.3rem;white-space:pre-wrap;">${escaparHTML(e.cuerpo_propuesta)}</div>` : ''}
+                                    ${e.link_documentacion ? `<div style="font-size:0.82rem;margin-top:0.2rem;"><a href="${escaparHTML(e.link_documentacion)}" target="_blank" style="color:var(--color-primario);">Documentación ↗</a></div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `
+                }
+
+                contenido.innerHTML = html
+                document.getElementById('modal-detalle').classList.add('visible')
+            } catch (error) {
+                mostrarAlerta('Error al cargar detalle: ' + error.message, 'error')
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-detalle').classList.remove('visible')
+        }
+
+        // ── Helpers ──────────────────────────────────────────────
+        async function fetchAPI(url, options = {}) {
+            const res = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                ...options
+            })
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}))
+                throw new Error(data.error || `Error ${res.status}`)
+            }
+            return res.json()
+        }
+
+        function llenarSelect(id, datos, campoValor, formatoTexto) {
+            const select = document.getElementById(id)
+            select.innerHTML = '<option value="">— Seleccione —</option>'
+            datos.forEach(d => {
+                const option = document.createElement('option')
+                option.value = d[campoValor]
+                option.textContent = formatoTexto(d)
+                select.appendChild(option)
+            })
+        }
+
+        function mostrarAlerta(mensaje, tipo) {
+            const alerta = document.getElementById('alerta-global')
+            alerta.textContent = mensaje
+            alerta.className = `alerta alerta-${tipo} visible`
+            setTimeout(() => alerta.classList.remove('visible'), 6000)
+        }
+
+        function limpiarFormulario() {
+            document.getElementById('input-titulo').value = ''
+            document.getElementById('textarea-justificacion').value = ''
+            document.getElementById('input-link-doc').value = ''
+            document.getElementById('sel-reglamento').value = ''
+            document.getElementById('sel-etapa').value = ''
+            document.getElementById('sel-mayoria').value = ''
+            proponentesSeleccionados = []
+            renderizarProponentes()
+            modalidadActual = 'SUSTITUTIVO'
+            document.querySelectorAll('.modalidad-tab').forEach(t => t.classList.remove('activa'))
+            document.querySelector('.modalidad-tab[data-valor="SUSTITUTIVO"]').classList.add('activa')
+            document.getElementById('arbol-seleccion').innerHTML = '<p class="aviso-arbol">Seleccione un reglamento para cargar el árbol normativo.</p>'
+            document.getElementById('referencia-articulo').textContent = 'Seleccione un reglamento para iniciar'
+        }
+
+        function setBotonesDisabled(estado) {
+            document.getElementById('btn-borrador').disabled = estado
+            document.getElementById('btn-presentar').disabled = estado
+        }
+
+        function cargarUsuario() {
+            if (!token) return
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]))
+                const usuario = payload.username || payload.rol || 'Usuario AIR'
+                document.getElementById('usuario-barra').textContent = usuario
+            } catch {
+                document.getElementById('usuario-barra').textContent = 'Sistema AIR'
+            }
+        }
+
+        function escaparHTML(valor) {
+            return String(valor || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;')
+        }
+
+        // Cerrar modal con Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') cerrarModal()
+        })
+    </script>
+</body>
+</html>
