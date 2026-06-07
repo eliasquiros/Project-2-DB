@@ -86,4 +86,9 @@ router.get('/auditoria/tablas', verificarToken, ReporteController.obtenerTablasA
 router.get('/reportes/estadisticas', verificarToken, ReporteController.obtenerEstadisticas)
 router.get('/reportes/exportar',     verificarToken, ReporteController.exportarExcel)
 
+// ── NOTAS CONDICIONALES (Issue 6) ─────────────────────────────────────────────
+router.get('/notas-condicionales', verificarToken, ReporteController.obtenerNotasCondicionales)
+router.post('/notas-condicionales', verificarToken, ReporteController.crearNotaCondicional)
+router.put('/notas-condicionales/:id', verificarToken, ReporteController.actualizarNotaCondicional)
+
 module.exports = router

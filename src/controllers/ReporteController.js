@@ -4,14 +4,16 @@
 // Issue 17: Generador de Atestados
 // Issue 5:  Historial de Certificaciones y Re-impresión con Snapshot
 // Issue 13: Bitácora de Auditoría y Trazabilidad
-// Issue 1: Implementación de Lógica de Foliado y Asignación de Consecutivo Legal
+// Issue 1:  Implementación de Lógica de Foliado y Asignación de Consecutivo Legal
+// Issue 6:  Motor de Reglas para Notas Condicionales
 // =============================================================================
 
-const Auditoria     = require('../models/Auditoria')
-const Certificacion = require('../models/Certificacion')
-const { generarCertificacionPDF } = require('../services/PDFService')
-const Reporte = require('../models/Reporte')
-const { generarExcelEstadisticas } = require('../services/ExcelService')
+const Auditoria              = require('../models/Auditoria')
+const Certificacion          = require('../models/Certificacion')
+const Reporte                = require('../models/Reporte')
+const Catalogo               = require('../models/Catalogo')
+const { generarCertificacionPDF }    = require('../services/PDFService')
+const { generarExcelEstadisticas }   = require('../services/ExcelService')
 
 // ── CERTIFICACIONES (Issue 17 + Issue 5) ─────────────────────────────────────
 
@@ -25,7 +27,6 @@ const generarCertificacion = async (req, res) => {
             })
         }
 
-        // Obtener todos los datos del asambleísta
         const datos = await Certificacion.obtenerDatosCertificacion(
             id_asambleista,
             fecha_inicio,
@@ -36,12 +37,9 @@ const generarCertificacion = async (req, res) => {
             return res.status(404).json({ error: 'Asambleísta no encontrado' })
         }
 
-        // Generar el PDF y el hash con folio temporal
         const datosConFolioTemp = { ...datos, folio_unico: 'PENDIENTE' }
         const { pdfBuffer, hash } = await generarCertificacionPDF(datosConFolioTemp)
 
-        // Registrar en la BD con snapshot — el trigger asigna el folio real automáticamente
-        // Issue 5: se pasa "datos" para guardarlo como snapshot_json
         const certificacion = await Certificacion.registrarCertificacion(
             id_asambleista,
             hash,
@@ -49,7 +47,6 @@ const generarCertificacion = async (req, res) => {
             datos
         )
 
-        // Regenerar el PDF con el folio real
         const datosConFolioReal = { ...datos, folio_unico: certificacion.folio_unico }
         const { pdfBuffer: pdfFinal } = await generarCertificacionPDF(datosConFolioReal)
 
@@ -66,9 +63,7 @@ const generarCertificacion = async (req, res) => {
     }
 }
 
-// =============================================================================
-// ── Foliado (Issue 1) ────────────────────────────────────
-// Devuelve los datos del asambleísta para previsualizar SIN asignar folio
+// Issue 1: Previsualizar SIN asignar folio
 const previewCertificacion = async (req, res) => {
     try {
         const { id_asambleista, fecha_inicio, fecha_fin } = req.body
@@ -95,10 +90,8 @@ const previewCertificacion = async (req, res) => {
         res.status(500).json({ error: 'Error interno del servidor' })
     }
 }
-// =============================================================================
 
-// Issue 5: Re-imprime una certificación existente usando el snapshot guardado
-// No genera un nuevo folio — usa exactamente los datos del momento de emisión original
+// Issue 5: Re-impresión con snapshot
 const reimprimirCertificacion = async (req, res) => {
     try {
         const { folio } = req.params
@@ -107,14 +100,12 @@ const reimprimirCertificacion = async (req, res) => {
             return res.status(400).json({ error: 'El folio es obligatorio.' })
         }
 
-        // Obtener datos originales desde el snapshot, no de la BD actual
         const datos = await Certificacion.obtenerDatosParaReimpresion(folio)
 
         if (!datos) {
             return res.status(404).json({ error: 'Certificación no encontrada.' })
         }
 
-        // Verificar que no esté anulada
         const certificacion = await Certificacion.obtenerPorFolio(folio)
         if (certificacion.estado === 'ANULADO') {
             return res.status(400).json({
@@ -122,7 +113,6 @@ const reimprimirCertificacion = async (req, res) => {
             })
         }
 
-        // Generar el PDF con los datos originales del snapshot
         const { pdfBuffer } = await generarCertificacionPDF(datos)
 
         res.setHeader('Content-Type', 'application/pdf')
@@ -138,11 +128,9 @@ const reimprimirCertificacion = async (req, res) => {
     }
 }
 
-// Verifica la autenticidad de una certificación por folio
 const obtenerPorFolio = async (req, res) => {
     try {
         const { folio } = req.params
-
         const certificacion = await Certificacion.obtenerPorFolio(folio)
 
         if (!certificacion) {
@@ -156,7 +144,6 @@ const obtenerPorFolio = async (req, res) => {
     }
 }
 
-// Historial de certificaciones emitidas para el dashboard
 const obtenerHistorial = async (req, res) => {
     try {
         const historial = await Certificacion.obtenerHistorial()
@@ -181,7 +168,6 @@ const obtenerLogs = async (req, res) => {
         })
 
         res.status(200).json({ logs })
-
     } catch (error) {
         console.error('Error al obtener logs de auditoría:', error.message)
         res.status(500).json({ error: 'Error interno al obtener la bitácora.' })
@@ -228,13 +214,8 @@ const obtenerTablasAuditadas = async (req, res) => {
     }
 }
 
-// Issue #16 — Reportería Administrativa
-// Maneja estadísticas y exportación de datos del sistema AIR
+// ── REPORTERÍA (Issue 16) ─────────────────────────────────────────────────────
 
-
-
-// Obtiene todas las estadísticas del año seleccionado en paralelo
-// Alimenta los gráficos y métricas rápidas de la vista
 const obtenerEstadisticas = async (req, res) => {
     try {
         const { anio } = req.query
@@ -243,7 +224,6 @@ const obtenerEstadisticas = async (req, res) => {
             return res.status(400).json({ error: 'El año es inválido o no fue enviado' })
         }
 
-        // Promise.all ejecuta las tres consultas en paralelo para mayor eficiencia
         const [porMes, porSector, folios] = await Promise.all([
             Reporte.obtenerCertificacionesPorMes(anio),
             Reporte.obtenerDesglosePorSector(),
@@ -251,13 +231,11 @@ const obtenerEstadisticas = async (req, res) => {
         ])
 
         res.json({ porMes, porSector, folios })
-
     } catch (error) {
         res.status(500).json({ error: error.message })
     }
 }
 
-// Genera y descarga el archivo Excel con las estadísticas del año
 const exportarExcel = async (req, res) => {
     try {
         const { anio } = req.query
@@ -269,13 +247,63 @@ const exportarExcel = async (req, res) => {
         const datos = await Reporte.exportarEstadisticas(anio)
         const buffer = generarExcelEstadisticas(datos, anio)
 
-        // Configura los headers para que el navegador descargue el archivo
         res.setHeader('Content-Disposition', `attachment; filename="reporte-air-${anio}.xlsx"`)
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         res.send(buffer)
-
     } catch (error) {
         res.status(500).json({ error: error.message })
+    }
+}
+
+// ── NOTAS CONDICIONALES (Issue 6) ─────────────────────────────────────────────
+
+const obtenerNotasCondicionales = async (req, res) => {
+    try {
+        const notas = await Catalogo.obtenerNotasCondicionales()
+        res.status(200).json({ notas })
+    } catch (error) {
+        console.error('Error al obtener notas condicionales:', error.message)
+        res.status(500).json({ error: 'Error interno al obtener las notas.' })
+    }
+}
+
+const crearNotaCondicional = async (req, res) => {
+    try {
+        const { codigo_tipo_origen, descripcion_interna, texto_nota } = req.body
+
+        if (!codigo_tipo_origen || !texto_nota) {
+            return res.status(400).json({ error: 'El código y el texto de la nota son obligatorios.' })
+        }
+
+        const nota = await Catalogo.crearNota(codigo_tipo_origen, descripcion_interna, texto_nota)
+        res.status(201).json({ mensaje: 'Nota creada correctamente.', nota })
+    } catch (error) {
+        console.error('Error al crear nota condicional:', error.message)
+        res.status(500).json({ error: 'Error interno al crear la nota.' })
+    }
+}
+
+const actualizarNotaCondicional = async (req, res) => {
+    try {
+        const { id } = req.params
+        const { codigo_tipo_origen, descripcion_interna, texto_nota, activo } = req.body
+
+        if (!codigo_tipo_origen || !texto_nota) {
+            return res.status(400).json({ error: 'El código y el texto de la nota son obligatorios.' })
+        }
+
+        const nota = await Catalogo.actualizarNota(
+            id, codigo_tipo_origen, descripcion_interna, texto_nota, activo
+        )
+
+        if (!nota) {
+            return res.status(404).json({ error: 'Nota no encontrada.' })
+        }
+
+        res.status(200).json({ mensaje: 'Nota actualizada correctamente.', nota })
+    } catch (error) {
+        console.error('Error al actualizar nota condicional:', error.message)
+        res.status(500).json({ error: 'Error interno al actualizar la nota.' })
     }
 }
 
@@ -291,5 +319,8 @@ module.exports = {
     obtenerAsambleistasConsultados,
     obtenerTablasAuditadas,
     obtenerEstadisticas,
-    exportarExcel
+    exportarExcel,
+    obtenerNotasCondicionales,
+    crearNotaCondicional,
+    actualizarNotaCondicional
 }
