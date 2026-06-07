@@ -8,6 +8,7 @@ const LegislativoController = require('../controllers/LegislativoController')
 const ReporteController = require('../controllers/ReporteController')
 const { verificarToken } = require('./middleware')
 const ComisionController = require('../controllers/ComisionController')
+const PropuestaController = require('../controllers/PropuestaController')
 
 // ── AUTH ──────────────────────────────────────────
 router.post('/auth/login', AuthController.login)
@@ -44,6 +45,15 @@ router.get('/catalogos/estados-asistencia', verificarToken, LegislativoControlle
 router.post('/reformas', verificarToken, LegislativoController.aplicarReforma)
 router.get('/reformas/:id/historial', verificarToken, LegislativoController.obtenerHistorialReformas)
 
+// ── PROPUESTAS DE REFORMA ─────────────────────────────────
+router.get('/propuestas/catalogos',    verificarToken, PropuestaController.obtenerCatalogosPropuesta)
+router.get('/propuestas',              verificarToken, PropuestaController.obtenerTodas)
+router.get('/propuestas/:id',          verificarToken, PropuestaController.obtenerPorId)
+router.post('/propuestas',             verificarToken, PropuestaController.crearPropuesta)
+router.post('/propuestas/borrador',    verificarToken, PropuestaController.guardarBorrador)
+router.post('/propuestas/presentar',   verificarToken, PropuestaController.validarYPresentar)
+router.put('/propuestas/:id/estado',   verificarToken, PropuestaController.cambiarEstado)
+router.get('/propuestas/:id/bitacora', verificarToken, PropuestaController.obtenerBitacora)
 
 // ── SESIONES ──────────────────────────────────────
 router.get('/sesiones', verificarToken, LegislativoController.obtenerSesiones)
