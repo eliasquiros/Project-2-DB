@@ -19,6 +19,9 @@ const { generarExcelEstadisticas }   = require('../services/ExcelService')
 
 const generarCertificacion = async (req, res) => {
     try {
+        if (!['SECRETARIA', 'ADMIN'].includes(req.usuario.rol)) {
+            return res.status(403).json({ error: 'No tiene permisos para emitir certificaciones.' })
+        }
         const { id_asambleista, fecha_inicio, fecha_fin } = req.body
 
         if (!id_asambleista || !fecha_inicio || !fecha_fin) {

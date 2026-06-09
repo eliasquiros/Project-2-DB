@@ -339,6 +339,8 @@ fetch('/shared/navbar.view.html')
 
     <script>
         const token = localStorage.getItem('token')
+        const payload = token ? JSON.parse(atob(token.split('.')[1])) : {}
+        const rolUsuario = payload.rol || ''
         let datosPreview = null
 
         // ── CARGAR ASAMBLEÍSTAS (Issue 3) ─────────────────────────────────
@@ -718,6 +720,10 @@ fetch('/shared/navbar.view.html')
         }
 
         // ── INICIALIZACIÓN ────────────────────────────────────────────────
+        if (!['SECRETARIA', 'ADMIN'].includes(rolUsuario)) {
+            const btnConfirmar = document.getElementById('btn-confirmar')
+            if (btnConfirmar) btnConfirmar.style.display = 'none'
+        }
         cargarAsambleistas()
         cargarHistorial()
     </script>
