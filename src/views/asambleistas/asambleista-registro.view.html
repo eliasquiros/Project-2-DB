@@ -54,13 +54,6 @@ fetch('/shared/navbar.view.html')
     </form>
      <script>
         const token = localStorage.getItem('token')
-
-        const res = await fetch('/api/reglamentos', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        })
         const params = new URLSearchParams(window.location.search)
         const id = params.get('id')
 

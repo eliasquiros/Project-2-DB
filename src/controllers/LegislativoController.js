@@ -302,11 +302,11 @@ const obtenerArbol = async (req, res) => {
     try {
         const { id } = req.params
 
-        if (!id || isNaN(id)) {
+        if (!id || !/^\d+$/.test(id)) {
             return res.status(400).json({ error: 'El id del reglamento es inválido o no fue enviado' })
         }
 
-        const arbol = await Normativa.generarArbolRecursivo(parseInt(id))
+        const arbol = await Normativa.generarArbolRecursivo(id)
         res.json(arbol)
     } catch (error) {
         if (error.message.includes('No se encontraron elementos')) {
@@ -321,13 +321,13 @@ const obtenerTrazabilidad = async (req, res) => {
     try {
         const { id } = req.params
 
-        if (!id || isNaN(id)) {
+        if (!id || !/^\d+$/.test(id)) {
             return res.status(400).json({ 
                 error: 'El id del elemento normativo es inválido o no fue enviado' 
             })
         }
 
-        const trazabilidad = await Normativa.obtenerTrazabilidad(parseInt(id))
+        const trazabilidad = await Normativa.obtenerTrazabilidad(id)
         res.json(trazabilidad)
 
     } catch (error) {
