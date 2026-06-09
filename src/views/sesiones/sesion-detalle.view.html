@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detalle de Sesión — Sistema AIR</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 2rem; background: #f5f5f5; }
+        body { background: var(--color-fondo); }
         h1, h2 { color: #1a1a2e; }
         h2 { margin-top: 2rem; border-bottom: 2px solid #1a1a2e; padding-bottom: 0.5rem; }
 
@@ -174,8 +174,10 @@ fetch('/shared/navbar.view.html')
             if (item.classList.contains(rolClass)) item.style.display = 'list-item'
         })
     })
+
 </script>
 
+    <div class="contenedor">
     <button class="secundario" onclick="window.location.href='sesion-lista.view.html'">
         ← Volver a sesiones
     </button>
@@ -444,5 +446,6 @@ fetch('/shared/navbar.view.html')
         }
     </script>
 
+</div>
 </body>
 </html>
