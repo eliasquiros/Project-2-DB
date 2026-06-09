@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<head><script src="/shared/auth.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notas Condicionales - Sistema AIR</title>
@@ -64,6 +64,26 @@
     </style>
 </head>
 <body>
+<div id="navbar-container"></div>
+<script>
+fetch('/shared/navbar.view.html')
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('navbar-container').innerHTML = html
+        const rol = localStorage.getItem('rol')
+        const username = localStorage.getItem('username')
+        if (!rol || !localStorage.getItem('token')) {
+            window.location.href = '/auth/login.view.html'
+            return
+        }
+        const spanUsuario = document.getElementById('nav-nombre-usuario')
+        if (spanUsuario && username) spanUsuario.textContent = username
+        const rolClass = 'rol-' + rol.toLowerCase()
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.classList.contains(rolClass)) item.style.display = 'list-item'
+        })
+    })
+</script>
 
 <!-- NAVBAR -->
 <nav class="navbar">

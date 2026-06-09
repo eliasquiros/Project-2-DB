@@ -1,73 +1,103 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<head><script src="/shared/auth.js"></script>
     <link rel="stylesheet" href="/shared/global.css">
     <meta charset="UTF-8">
     <title>Asambleístas - Sistema AIR</title>
 </head>
 <body>
-    <h1>Registro de Asambleístas</h1>
 
-    <div>
-        <input type="text" id="buscador" placeholder="Buscar por nombre o cédula..." />
-    </div>
+<div id="navbar-container"></div>
 
-    <table id="tabla-asambleistas">
-        <thead>
-            <tr>
-                <th>Cédula</th>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody id="cuerpo-tabla">
-            <!-- Los datos se cargan dinámicamente desde la API -->
-        </tbody>
-    </table>
+<script>
+fetch('/shared/navbar.view.html')
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('navbar-container').innerHTML = html
 
-    <button onclick="window.location.href='asambleista-registro.view.html'">
-        + Nuevo Asambleísta
-    </button>
-    <script>
-    async function cargarAsambleistas() {
-        const token = localStorage.getItem('token')
-        const res = await fetch('/api/asambleistas', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
+        // Ejecutar lógica de roles después de inyectar el navbar
+        const rol = localStorage.getItem('rol')
+        const username = localStorage.getItem('username')
+
+        if (!rol || !localStorage.getItem('token')) {
+            window.location.href = '/auth/login.view.html'
+            return
+        }
+
+        const spanUsuario = document.getElementById('nav-nombre-usuario')
+        if (spanUsuario && username) spanUsuario.textContent = username
+
+        const rolClass = 'rol-' + rol.toLowerCase()
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.classList.contains(rolClass)) {
+                item.style.display = 'list-item'
             }
         })
-        const datos = await res.json()
-        const cuerpo = document.getElementById('cuerpo-tabla')
-        cuerpo.innerHTML = ''
-        datos.forEach(a => {
-            const fila = `
-                <tr>
-                    <td>${a.cedula}</td>
-                    <td>${a.nombre}</td>
-                    <td>${a.correo_institucional || 'No registrado'}</td>
-                    <td>${a.estado || 'Vigente'}</td>
-                    <td>
-                        <a href="asambleista-detalle.view.html?id=${a.asambleista_id}">Ver</a>
-                    </td>
-                </tr>
-            `
-            cuerpo.innerHTML += fila
-        })
-    }
-
-    document.getElementById('buscador').addEventListener('input', function () {
-        const texto = this.value.toLowerCase()
-        const filas = document.querySelectorAll('#cuerpo-tabla tr')
-        filas.forEach(fila => {
-            const contenido = fila.textContent.toLowerCase()
-            fila.style.display = contenido.includes(texto) ? '' : 'none'
-        })
     })
+</script>
 
-    cargarAsambleistas()
+<h1>Registro de Asambleístas</h1>
+
+<div>
+    <input type="text" id="buscador" placeholder="Buscar por nombre o cédula..." />
+</div>
+
+<table id="tabla-asambleistas">
+    <thead>
+        <tr>
+            <th>Cédula</th>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody id="cuerpo-tabla">
+    </tbody>
+</table>
+
+<button onclick="window.location.href='asambleista-registro.view.html'">
+    + Nuevo Asambleísta
+</button>
+
+<script>
+async function cargarAsambleistas() {
+    const token = localStorage.getItem('token')
+    const res = await fetch('/api/asambleistas', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    })
+    const datos = await res.json()
+    const cuerpo = document.getElementById('cuerpo-tabla')
+    cuerpo.innerHTML = ''
+    datos.forEach(a => {
+        const fila = `
+            <tr>
+                <td>${a.cedula}</td>
+                <td>${a.nombre}</td>
+                <td>${a.correo_institucional || 'No registrado'}</td>
+                <td>${a.estado || 'Vigente'}</td>
+                <td>
+                    <a href="asambleista-detalle.view.html?id=${a.asambleista_id}">Ver</a>
+                </td>
+            </tr>
+        `
+        cuerpo.innerHTML += fila
+    })
+}
+
+document.getElementById('buscador').addEventListener('input', function () {
+    const texto = this.value.toLowerCase()
+    const filas = document.querySelectorAll('#cuerpo-tabla tr')
+    filas.forEach(fila => {
+        const contenido = fila.textContent.toLowerCase()
+        fila.style.display = contenido.includes(texto) ? '' : 'none'
+    })
+})
+
+cargarAsambleistas()
 </script>
 </body>
 </html>
