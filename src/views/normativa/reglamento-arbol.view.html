@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<head><script src="/shared/auth.js"></script>
     <link rel="stylesheet" href="/shared/global.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -375,17 +375,33 @@
     </style>
 </head>
 <body>
+
+<div id="navbar-container"></div>
+
+<script>
+fetch('/shared/navbar.view.html')
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('navbar-container').innerHTML = html
+        const rol = localStorage.getItem('rol')
+        const username = localStorage.getItem('username')
+        if (!rol || !localStorage.getItem('token')) {
+            window.location.href = '/auth/login.view.html'
+            return
+        }
+        const spanUsuario = document.getElementById('nav-nombre-usuario')
+        if (spanUsuario && username) spanUsuario.textContent = username
+        const rolClass = 'rol-' + rol.toLowerCase()
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.classList.contains(rolClass)) item.style.display = 'list-item'
+        })
+    })
+</script>
+
     <main class="explorador-shell">
-        <header class="explorador-topbar">
-            <div class="marca">
-                <div class="marca-logo">TEC</div>
-                <div class="marca-texto">
-                    <strong>TEC - AIR: Explorador Normativo</strong>
-                    <span>Asamblea Institucional Representativa</span>
-                </div>
-            </div>
-            <div class="usuario-barra" id="usuario-barra">Sistema AIR</div>
-        </header>
+    <h1 style="padding: 1rem 1.5rem; margin: 0; background: white; border-bottom: 1px solid #e0e0e0; font-size: 1.2rem; color: #1a2b4a;">
+        📋 Explorador Normativo
+    </h1>
 
         <section id="selector-pantalla" class="selector-pantalla">
             <div class="selector-panel">

@@ -1,11 +1,31 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<head><script src="/shared/auth.js"></script>
     <link rel="stylesheet" href="/shared/global.css">
     <meta charset="UTF-8">
     <title>Registro de Asambleísta - Sistema AIR</title>
 </head>
 <body>
+<div id="navbar-container"></div>
+<script>
+fetch('/shared/navbar.view.html')
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('navbar-container').innerHTML = html
+        const rol = localStorage.getItem('rol')
+        const username = localStorage.getItem('username')
+        if (!rol || !localStorage.getItem('token')) {
+            window.location.href = '/auth/login.view.html'
+            return
+        }
+        const spanUsuario = document.getElementById('nav-nombre-usuario')
+        if (spanUsuario && username) spanUsuario.textContent = username
+        const rolClass = 'rol-' + rol.toLowerCase()
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.classList.contains(rolClass)) item.style.display = 'list-item'
+        })
+    })
+</script>
     <h1 id="titulo-formulario">Nuevo Asambleísta</h1>
 
     <form id="formulario-asambleista">

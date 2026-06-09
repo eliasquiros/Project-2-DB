@@ -9,6 +9,7 @@ const ReporteController = require('../controllers/ReporteController')
 const { verificarToken } = require('./middleware')
 const ComisionController = require('../controllers/ComisionController')
 const PropuestaController = require('../controllers/PropuestaController')
+const UsuarioController = require('../controllers/UsuarioController')
 
 // ── AUTH ──────────────────────────────────────────
 router.post('/auth/login', AuthController.login)
@@ -90,5 +91,11 @@ router.get('/reportes/exportar',     verificarToken, ReporteController.exportarE
 router.get('/notas-condicionales', verificarToken, ReporteController.obtenerNotasCondicionales)
 router.post('/notas-condicionales', verificarToken, ReporteController.crearNotaCondicional)
 router.put('/notas-condicionales/:id', verificarToken, ReporteController.actualizarNotaCondicional)
+
+// ── USUARIOS (solo ADMIN) ─────────────────────────────────────────────────
+router.get('/usuarios', verificarToken, UsuarioController.obtenerTodos)
+router.get('/usuarios/roles', verificarToken, UsuarioController.obtenerRoles)
+router.post('/usuarios', verificarToken, UsuarioController.crear)
+router.put('/usuarios/:id/estado', verificarToken, UsuarioController.cambiarEstado)
 
 module.exports = router

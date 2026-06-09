@@ -1,0 +1,179 @@
+<nav id="navbar-air">
+    <div class="nav-marca">
+        <span class="nav-logo">TEC</span>
+        <div class="nav-titulo">
+            <strong>TEC - AIR: Sistema de Gestión</strong>
+            <small>Asamblea Institucional Representativa</small>
+        </div>
+    </div>
+
+    <ul class="nav-links" id="nav-links">
+        <!-- Asambleístas: ADMIN y SECRETARIA -->
+        <li class="nav-item rol-admin rol-secretaria">
+            <a href="/asambleistas/asambleista-lista.view.html">Asambleístas</a>
+        </li>
+
+        <!-- Sesiones: ADMIN y SECRETARIA -->
+        <li class="nav-item rol-admin rol-secretaria">
+            <a href="/sesiones/sesion-lista.view.html">Sesiones</a>
+        </li>
+
+        <!-- Comisiones: ADMIN y SECRETARIA -->
+        <li class="nav-item rol-admin rol-secretaria">
+            <a href="/comisiones/comision-lista.view.html">Comisiones</a>
+        </li>
+
+        <!-- Normativa: todos los roles -->
+        <li class="nav-item rol-admin rol-secretaria rol-consulta">
+            <a href="/normativa/reglamento-arbol.view.html">Normativa</a>
+        </li>
+
+        <!-- Certificaciones: todos los roles -->
+        <li class="nav-item rol-admin rol-secretaria rol-consulta">
+            <a href="/certificaciones/certificacion-solicitud.view.html">Certificaciones</a>
+        </li>
+
+        <!-- Reportes: ADMIN y SECRETARIA -->
+        <li class="nav-item rol-admin rol-secretaria">
+            <a href="/reportes/reportes.view.html">Reportes</a>
+        </li>
+
+        <!-- Gestión Usuarios: solo ADMIN -->
+        <li class="nav-item rol-admin">
+            <a href="/usuarios/usuario-lista.view.html">Gestión Usuarios</a>
+        </li>
+    </ul>
+
+    <div class="nav-usuario">
+        <span id="nav-nombre-usuario"></span>
+        <button onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>
+</nav>
+
+<style>
+#navbar-air {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #1a2b4a;
+    color: white;
+    padding: 0 24px;
+    height: 60px;
+    gap: 24px;
+}
+
+.nav-marca {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.nav-logo {
+    background-color: #2e5fa3;
+    color: white;
+    font-weight: bold;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.nav-titulo strong {
+    display: block;
+    font-size: 14px;
+}
+
+.nav-titulo small {
+    font-size: 11px;
+    color: #aac4e8;
+}
+
+.nav-links {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+}
+
+.nav-links .nav-item {
+    display: none; /* oculto por defecto, JS lo muestra según rol */
+}
+
+.nav-links a {
+    color: #cce0ff;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.nav-links a:hover {
+    background-color: #2e5fa3;
+    color: white;
+}
+
+.nav-usuario {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    font-size: 13px;
+}
+
+.nav-usuario span {
+    color: #aac4e8;
+}
+
+.nav-usuario button {
+    background-color: #c0392b;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.nav-usuario button:hover {
+    background-color: #e74c3c;
+}
+</style>
+
+<script>
+(function() {
+    const rol = localStorage.getItem('rol')
+    const username = localStorage.getItem('username')
+
+    // Si no hay sesión activa, redirigir al login
+    if (!rol || !localStorage.getItem('token')) {
+        window.location.href = '/auth/login.view.html'
+        return
+    }
+
+    // Mostrar nombre de usuario
+    const spanUsuario = document.getElementById('nav-nombre-usuario')
+    if (spanUsuario && username) {
+        spanUsuario.textContent = username
+    }
+
+    // Mostrar los ítems según el rol
+    const rolClass = 'rol-' + rol.toLowerCase()
+    const items = document.querySelectorAll('.nav-item')
+    items.forEach(item => {
+        if (item.classList.contains(rolClass)) {
+            item.style.display = 'list-item'
+        }
+    })
+})()
+
+function cerrarSesion() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('rol')
+    localStorage.removeItem('username')
+    window.location.href = '/auth/login.view.html'
+}
+</script>

@@ -34,7 +34,7 @@ const login = async (req, res) => {
             { expiresIn: '8h' }
         )
 
-        res.json({ token, rol: usuario.rol })
+        res.json({ token, rol: usuario.rol, username: usuario.username })
     } catch (error) {
         console.error('Error en login:', error.message)
         res.status(500).json({ error: 'Error interno del servidor' })
