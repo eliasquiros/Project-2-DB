@@ -103,11 +103,62 @@ const cambiarEstado = async (id_usuario, activo) => {
     await pool.query(query, [activo, id_usuario])
 }
 
+// Editar usuario (email y/o rol)
+const editar = async (id_usuario, email, id_rol) => {
+    const client = await pool.connect()
+    try {
+        await client.query('BEGIN')
+
+        if (email) {
+            await client.query(
+                'UPDATE sys_usuario SET email = $1 WHERE id_usuario = $2',
+                [email, id_usuario]
+            )
+        }
+
+        if (id_rol) {
+            await client.query(
+                'DELETE FROM sys_usuario_rol WHERE id_usuario = $1',
+                [id_usuario]
+            )
+            await client.query(
+                'INSERT INTO sys_usuario_rol (id_usuario, id_rol) VALUES ($1, $2)',
+                [id_usuario, id_rol]
+            )
+        }
+
+        await client.query('COMMIT')
+    } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
+// Eliminar usuario
+const eliminar = async (id_usuario) => {
+    const client = await pool.connect()
+    try {
+        await client.query('BEGIN')
+        await client.query('DELETE FROM sys_usuario_rol WHERE id_usuario = $1', [id_usuario])
+        await client.query('DELETE FROM sys_usuario WHERE id_usuario = $1', [id_usuario])
+        await client.query('COMMIT')
+    } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+    } finally {
+        client.release()
+    }
+}
+
 module.exports = {
     obtenerPorUsername,
     obtenerPermisos,
     obtenerTodos,
     obtenerRoles,
     crear,
-    cambiarEstado
+    cambiarEstado,
+    editar,
+    eliminar
 }
