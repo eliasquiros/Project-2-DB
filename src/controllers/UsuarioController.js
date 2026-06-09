@@ -7,7 +7,7 @@
 const bcrypt = require('bcryptjs')
 const Usuario = require('../models/Usuario')
 
-// GET /api/usuarios — Listar todos los usuarios
+//Listar todos los usuarios
 const obtenerTodos = async (req, res) => {
     try {
         const usuarios = await Usuario.obtenerTodos()
@@ -18,7 +18,7 @@ const obtenerTodos = async (req, res) => {
     }
 }
 
-// GET /api/usuarios/roles — Listar roles disponibles
+//Listar roles disponibles
 const obtenerRoles = async (req, res) => {
     try {
         const roles = await Usuario.obtenerRoles()
@@ -29,7 +29,7 @@ const obtenerRoles = async (req, res) => {
     }
 }
 
-// POST /api/usuarios — Crear usuario nuevo
+//Crear usuario nuevo
 const crear = async (req, res) => {
     try {
         const { username, password, email, id_rol } = req.body
@@ -51,7 +51,7 @@ const crear = async (req, res) => {
     }
 }
 
-// PUT /api/usuarios/:id/estado — Activar o desactivar usuario
+//Activar o desactivar usuario
 const cambiarEstado = async (req, res) => {
     try {
         const { id } = req.params
@@ -69,9 +69,41 @@ const cambiarEstado = async (req, res) => {
     }
 }
 
+//Editar email y rol
+const editar = async (req, res) => {
+    try {
+        const { id } = req.params
+        const { email, id_rol } = req.body
+
+        if (!email && !id_rol) {
+            return res.status(400).json({ error: 'Debe proporcionar email o rol a actualizar' })
+        }
+
+        await Usuario.editar(id, email, id_rol)
+        res.json({ mensaje: 'Usuario actualizado correctamente' })
+    } catch (error) {
+        console.error('Error al editar usuario:', error.message)
+        res.status(500).json({ error: 'Error al editar usuario' })
+    }
+}
+
+//Eliminar usuario
+const eliminar = async (req, res) => {
+    try {
+        const { id } = req.params
+        await Usuario.eliminar(id)
+        res.json({ mensaje: 'Usuario eliminado correctamente' })
+    } catch (error) {
+        console.error('Error al eliminar usuario:', error.message)
+        res.status(500).json({ error: 'Error al eliminar usuario' })
+    }
+}
+
 module.exports = {
     obtenerTodos,
     obtenerRoles,
     crear,
-    cambiarEstado
+    cambiarEstado,
+    editar,
+    eliminar
 }

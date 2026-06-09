@@ -97,5 +97,7 @@ router.get('/usuarios', verificarToken, UsuarioController.obtenerTodos)
 router.get('/usuarios/roles', verificarToken, UsuarioController.obtenerRoles)
 router.post('/usuarios', verificarToken, UsuarioController.crear)
 router.put('/usuarios/:id/estado', verificarToken, UsuarioController.cambiarEstado)
+router.put('/usuarios/:id', verificarToken, UsuarioController.editar)
+router.delete('/usuarios/:id', verificarToken, UsuarioController.eliminar)
 
 module.exports = router
