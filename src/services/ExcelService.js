@@ -1,3 +1,5 @@
+const XLSX = require('xlsx')
+
 const generarExcelEstadisticas = (datos, anio) => {
 
     // Crea un libro de Excel vacío
