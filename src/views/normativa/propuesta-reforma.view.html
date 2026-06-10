@@ -603,7 +603,7 @@ fetch('/shared/navbar.view.html')
 
     <script>
         // ── Estado global ────────────────────────────────────────
-        const token = localStorage.getItem('token')
+        function getToken() { return localStorage.getItem('token') }
         let catalogos = {}
         let asambleistasDisponibles = []
         let proponentesSeleccionados = []  // [{ id, nombre }]
@@ -1056,7 +1056,7 @@ fetch('/shared/navbar.view.html')
         async function fetchAPI(url, options = {}) {
             const res = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `Bearer ${getToken()}`,
                     'Content-Type': 'application/json',
                     ...options.headers
                 },
@@ -1108,15 +1108,44 @@ fetch('/shared/navbar.view.html')
             document.getElementById('btn-presentar').disabled = estado
         }
 
-        function cargarUsuario() {
-            if (!token) return
+        function decodeJwtPayload(tkn) {
             try {
-                const payload = JSON.parse(atob(token.split('.')[1]))
-                const usuario = payload.username || payload.rol || 'Usuario AIR'
-                document.getElementById('usuario-barra').textContent = usuario
-            } catch {
-                document.getElementById('usuario-barra').textContent = 'Sistema AIR'
+                const part = (tkn || '').split('.')[1] || ''
+                let b64 = part.replace(/-/g, '+').replace(/_/g, '/')
+                while (b64.length % 4) b64 += '='
+                return JSON.parse(atob(b64))
+            } catch (e) {
+                return null
             }
+        }
+
+        function cargarUsuario() {
+            const t = getToken()
+            if (!t) {
+                const el = document.getElementById('usuario-barra')
+                if (el) el.textContent = 'Sistema AIR'
+                return
+            }
+
+            const payload = decodeJwtPayload(t)
+            if (!payload) {
+                const el = document.getElementById('usuario-barra')
+                if (el) el.textContent = 'Sistema AIR'
+                return
+            }
+
+            const username = payload.username || payload.name || payload.nombre || payload.sub || ''
+            const rol = payload.rol || payload.role || (payload.roles && payload.roles[0]) || ''
+
+            try {
+                if (username && !localStorage.getItem('username')) localStorage.setItem('username', username)
+                if (rol && !localStorage.getItem('rol')) localStorage.setItem('rol', rol)
+            } catch (e) { /* silenciar si storage no disponible */ }
+
+            const el = document.getElementById('usuario-barra')
+            if (el) el.textContent = username || rol || 'Usuario AIR'
+            const navSpan = document.getElementById('nav-nombre-usuario')
+            if (navSpan && username) navSpan.textContent = username
         }
 
         function escaparHTML(valor) {
