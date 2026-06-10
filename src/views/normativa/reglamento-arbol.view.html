@@ -470,55 +470,71 @@ fetch('/shared/navbar.view.html')
     </main>
 
     <script>
-        const token = localStorage.getItem('token')
+        // Obtener token dinámicamente desde localStorage (evita valores stale)
+        function getToken() { return localStorage.getItem('token') }
         let reglamentosDisponibles = []
         let nodoActivo = null
         // Guarda el objeto del nodo actualmente seleccionado
         let nodoSeleccionado = null
 
-        document.addEventListener('DOMContentLoaded', () => {
+        function initExplorador() {
             cargarReglamentos()
             cargarUsuario()
 
             // Inicializar comportamiento del botón de detalles: deshabilitado hasta seleccionar un nodo
             const btnDetalles = document.getElementById('btn-detalles-articulo')
             if (btnDetalles) {
+                // Estado inicial del botón
                 btnDetalles.disabled = true
+                // Acción principal reutilizable (extraída para permitir re-attach desde el monitor)
+                async function mostrarDetallesAction(evt) {
+                    try {
+                        const pestana = document.getElementById('pestana-detalles')
+                        if (!nodoSeleccionado) {
+                            const visor = document.getElementById('visor-contenido')
+                            const aviso = document.createElement('p')
+                            aviso.className = 'mensaje-estado'
+                            aviso.textContent = 'No hay elemento seleccionado. Seleccione un elemento del árbol primero.'
+                            visor.prepend(aviso)
+                            setTimeout(() => aviso.remove(), 2200)
+                            return
+                        }
+
+                        const yaVisible = pestana && pestana.classList.contains('visible')
+                        if (yaVisible) {
+                            togglePestanaDetalles(false)
+                            return
+                        }
+
+                        await cargarTrazabilidadYMostrar(nodoSeleccionado)
+                        togglePestanaDetalles(true)
+                    } catch (err) {
+                        console.error('[ERROR] mostrarDetallesAction:', err)
+                    }
+                }
+
                 // Al pulsar, si ya hay un nodo seleccionado se consultará la trazabilidad
-                btnDetalles.addEventListener('click', async () => {
-                    const pestana = document.getElementById('pestana-detalles')
-                    if (!nodoSeleccionado) {
-                        // Mensaje rápido si no hay selección
-                        const visor = document.getElementById('visor-contenido')
-                        const aviso = document.createElement('p')
-                        aviso.className = 'mensaje-estado'
-                        aviso.textContent = 'Seleccione un elemento para ver los detalles.'
-                        visor.prepend(aviso)
-                        setTimeout(() => aviso.remove(), 2200)
-                        return
-                    }
-
-                    // Si la pestaña ya está visible, la cerramos; si no, la abrimos tras obtener datos
-                    const yaVisible = pestana.classList.contains('visible')
-                    if (yaVisible) {
-                        togglePestanaDetalles(false)
-                        return
-                    }
-
-                    await cargarTrazabilidadYMostrar(nodoSeleccionado)
-                    togglePestanaDetalles(true)
-                })
+                btnDetalles.addEventListener('click', mostrarDetallesAction)
+                // Marcar que el handler principal fue colocado
+                try { btnDetalles.dataset.mainHandlerAttached = '1' } catch (e) { /* no crítico */ }
             }
 
             // Botón de cerrar dentro de la pestaña
             const pestanaCerrar = document.getElementById('pestana-cerrar')
             if (pestanaCerrar) pestanaCerrar.addEventListener('click', () => togglePestanaDetalles(false))
-        })
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initExplorador)
+        } else {
+            // Si el DOM ya está listo, inicializamos de inmediato
+            initExplorador()
+        }
 
         async function cargarReglamentos() {
             try {
                 const res = await fetch('/api/reglamentos', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 })
 
                 if (!res.ok) throw new Error('Error al obtener reglamentos')
@@ -558,7 +574,7 @@ fetch('/shared/navbar.view.html')
 
             try {
                 const res = await fetch(`/api/reglamentos/${id}/arbol`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 })
 
                 if (res.status === 404) {
@@ -599,6 +615,7 @@ fetch('/shared/navbar.view.html')
 
             const tieneHijos = nodo.hijos && nodo.hijos.length > 0
             const esSeleccionable = esNodoLegible(nodo)
+            // Información del nodo (no logueada en producción)
 
             const header = document.createElement('div')
             header.classList.add('nodo-header')
@@ -627,7 +644,7 @@ fetch('/shared/navbar.view.html')
 
                 div.appendChild(hijosContainer)
 
-                icono.addEventListener('click', (event) => {
+                    icono.addEventListener('click', (event) => {
                     event.stopPropagation()
                     const colapsado = hijosContainer.classList.toggle('colapsado')
                     icono.textContent = colapsado ? '>' : 'v'
@@ -651,11 +668,16 @@ fetch('/shared/navbar.view.html')
             nodoActivo.classList.add('activo')
 
             // Guardamos el nodo seleccionado para usarlo desde el botón de "detalles articulo"
+
             nodoSeleccionado = nodo
 
-            // Habilitamos el botón de detalles (estaba deshabilitado hasta que se selecciona un elemento)
+            // Registrar id detectado y exponerlo como atributo del botón para debugging
+            const detectedId = nodo.id_elemento || nodo.id || nodo.id_elemento_normativo || nodo.id_elemento_norma || nodo.id_registro || ''
             const btnDetalles = document.getElementById('btn-detalles-articulo')
-            if (btnDetalles) btnDetalles.disabled = false
+                if (btnDetalles) {
+                btnDetalles.disabled = false
+                try { btnDetalles.dataset.elementoId = String(detectedId) } catch (e) { /* no crítico */ }
+            }
 
             const visor = document.getElementById('visor-contenido')
             visor.innerHTML = `
@@ -664,7 +686,8 @@ fetch('/shared/navbar.view.html')
                 <div class="articulo-texto">${escaparHTML(nodo.contenido_texto || 'Este elemento no tiene texto registrado.')}</div>
             `
         }
-
+        
+    
         function obtenerEtiquetaNodo(nodo) {
             const nivel = nodo.nivel ? `${nodo.nivel} ` : ''
             const numero = nodo.numero_etiqueta || ''
@@ -738,16 +761,44 @@ fetch('/shared/navbar.view.html')
             alerta.classList.add('visible')
         }
 
-        function cargarUsuario() {
-            if (!token) return
-
+        function decodeJwtPayload(tkn) {
             try {
-                const payload = JSON.parse(atob(token.split('.')[1]))
-                const usuario = payload.username || payload.rol || 'Usuario AIR'
-                document.getElementById('usuario-barra').textContent = usuario
-            } catch {
-                document.getElementById('usuario-barra').textContent = 'Sistema AIR'
+                const part = (tkn || '').split('.')[1] || ''
+                // base64url -> base64
+                let b64 = part.replace(/-/g, '+').replace(/_/g, '/')
+                while (b64.length % 4) b64 += '='
+                return JSON.parse(atob(b64))
+            } catch (e) {
+                console.warn('[DEBUG] decodeJwtPayload error', e)
+                return null
             }
+        }
+
+        function cargarUsuario() {
+            const t = getToken()
+            if (!t) return
+
+            const payload = decodeJwtPayload(t)
+            if (!payload) {
+                const el = document.getElementById('usuario-barra')
+                if (el) el.textContent = 'Sistema AIR'
+                else console.warn('[DEBUG] cargarUsuario: token inválido y #usuario-barra no encontrado')
+                return
+            }
+
+            const username = payload.username || payload.name || payload.nombre || payload.sub || ''
+            const rol = payload.rol || payload.role || (payload.roles && payload.roles[0]) || ''
+
+            // Persistir en localStorage si aún no existen (la vista depende de estas claves)
+            try {
+                if (username && !localStorage.getItem('username')) localStorage.setItem('username', username)
+                if (rol && !localStorage.getItem('rol')) localStorage.setItem('rol', rol)
+            } catch (e) { /* silenciar si storage no disponible */ }
+
+            const el = document.getElementById('usuario-barra')
+            if (el) el.textContent = username || rol || 'Usuario AIR'
+            const navSpan = document.getElementById('nav-nombre-usuario')
+            if (navSpan && username) navSpan.textContent = username
         }
 
         function escaparHTML(valor) {
@@ -787,16 +838,38 @@ fetch('/shared/navbar.view.html')
          * distintos identificadores posibles para mayor resiliencia.
          */
         async function cargarTrazabilidadYMostrar(nodo) {
-            const id = nodo.id_elemento || nodo.id || nodo.id_elemento_normativo || nodo.id_elemento_norma || nodo.id_registro
+            // Nodo recibido para consultar trazabilidad
+            const idRaw = nodo && (nodo.id_elemento || nodo.id || nodo.id_elemento_normativo || nodo.id_elemento_norma || nodo.id_registro)
             const contenido = document.getElementById('pestana-contenido')
             if (!contenido) return
 
-            // Indicador de carga mientras llega la respuesta
-            contenido.innerHTML = '<p class="mensaje-estado">Cargando trazabilidad...</p>'
+            // Validar id antes de llamar a la API (permitir bigints como cadena)
+            if (!idRaw) {
+                contenido.innerHTML = '<p class="mensaje-estado error">No se ha detectado un id válido en el elemento seleccionado.</p>'
+                console.error('ID inválido al solicitar trazabilidad para nodo:', nodo)
+                return
+            }
+
+            const idStr = String(idRaw).trim()
+            if (!/^\d+$/.test(idStr)) {
+                contenido.innerHTML = '<p class="mensaje-estado error">El id del elemento seleccionado no es un número válido.</p>'
+                console.error('ID no numérico para nodo:', nodo)
+                return
+            }
+
+            // Indicador de carga: actualizar los campos existentes en lugar de reemplazar todo el contenedor
+            const versionEl = document.getElementById('pestana-version')
+            const modificadoEl = document.getElementById('pestana-modificado-por')
+            const acuerdoEl = document.getElementById('pestana-acuerdo')
+            const fechaEl = document.getElementById('pestana-fecha-sesion')
+            if (versionEl) versionEl.textContent = 'Cargando...'
+            if (modificadoEl) modificadoEl.textContent = ''
+            if (acuerdoEl) acuerdoEl.textContent = ''
+            if (fechaEl) fechaEl.textContent = ''
 
             try {
-                const res = await fetch(`/api/elementos/${id}/trazabilidad`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const res = await fetch(`/api/elementos/${encodeURIComponent(idStr)}/trazabilidad`, {
+                    headers: { 'Authorization': `Bearer ${getToken()}` }
                 })
 
                 if (res.status === 404) {
@@ -834,6 +907,70 @@ fetch('/shared/navbar.view.html')
                 return txt
             }
         }
+
+        // ─────────────────────────────────────────────────────────────────-----
+        // DEBUG: listeners globales y monitorización para depurar clicks
+        // - Registra pointerdown/click en fase de captura
+        // - Comprueba qué elemento está en la posición del click
+        // - Vuelve a adjuntar handlers si el botón es reemplazado
+        // ─────────────────────────────────────────────────────────────────-----
+        ;(function debugClickInstrumentation(){
+            try {
+                // Global pointer and click instrumentation removed for production
+            } catch(e) { console.error('[DEBUG] Error installing global listeners', e) }
+
+            // Monitor de cambios de referencia del botón
+            let lastBtn = document.getElementById('btn-detalles-articulo')
+            setInterval(()=> {
+                try {
+                    const btn = document.getElementById('btn-detalles-articulo')
+                    if (!btn) {
+                        if (lastBtn) { /* button removed from DOM */ }
+                        lastBtn = null
+                        return
+                    }
+                    if (btn !== lastBtn) {
+                        lastBtn = btn
+                    }
+                } catch (e) { console.warn('[DEBUG] interval check error', e) }
+            }, 1000)
+
+            // Intento de attach específico (fase captura) y reintento periódico
+            function attachPerButton(){
+                const btn = document.getElementById('btn-detalles-articulo')
+                if (!btn) return
+                try {
+                    // handler de depuración que siempre registra eventos (fase captura)
+                    // Specific debug handlers removed in production
+
+                    // Si el handler principal no fue adjuntado (p. ej. porque init falló), adjuntarlo desde aquí
+                    if (!btn.dataset || btn.dataset.mainHandlerAttached !== '1') {
+                        try {
+                            btn.addEventListener('click', async function(e){
+                                // reusar la misma lógica: simular click principal
+                                try {
+                                    const evt = e || window.event
+                                    if (!nodoSeleccionado) {
+                                        const visor = document.getElementById('visor-contenido')
+                                        const aviso = document.createElement('p')
+                                        aviso.className = 'mensaje-estado'
+                                        aviso.textContent = 'No hay elemento seleccionado. Seleccione un elemento del árbol primero.'
+                                        visor.prepend(aviso)
+                                        setTimeout(() => aviso.remove(), 2200)
+                                        return
+                                    }
+                                    await cargarTrazabilidadYMostrar(nodoSeleccionado)
+                                    togglePestanaDetalles(true)
+                                } catch (err) { console.error('[DEBUG MONITOR ACTION] error', err) }
+                            }, true)
+                            try { btn.dataset.mainHandlerAttached = '1' } catch(e){/* no crítico */}
+                        } catch(err){ console.warn('[DEBUG] attachPerButton: error adjuntando main handler', err) }
+                    }
+                } catch(e){ console.error('[DEBUG] error attaching specific handlers', e) }
+            }
+            attachPerButton()
+            setInterval(attachPerButton, 2000)
+        })()
     </script>
 </body>
 </html>

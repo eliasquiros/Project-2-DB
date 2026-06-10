@@ -320,14 +320,14 @@ const obtenerArbol = async (req, res) => {
 const obtenerTrazabilidad = async (req, res) => {
     try {
         const { id } = req.params
-
-        if (!id || !/^\d+$/.test(id)) {
+        if (!id || !/^\d+$/.test(String(id))) {
             return res.status(400).json({ 
                 error: 'El id del elemento normativo es inválido o no fue enviado' 
             })
         }
 
-        const trazabilidad = await Normativa.obtenerTrazabilidad(id)
+        // No convertir a Number: preservar valor como cadena para bigints
+        const trazabilidad = await Normativa.obtenerTrazabilidad(String(id))
         res.json(trazabilidad)
 
     } catch (error) {
