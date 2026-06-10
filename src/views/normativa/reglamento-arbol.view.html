@@ -453,7 +453,7 @@ fetch('/shared/navbar.view.html')
                         </div>
                         <div id="pestana-contenido">
                             <div class="pestana-campo"><b>Version:</b> <span id="pestana-version"></span></div>
-                            <div class="pestana-campo"><b>Modificado por:</b> <span id="pestana-modificado-por"></span></div>
+
                             <div class="pestana-campo"><b>Acuerdo:</b> <span id="pestana-acuerdo"></span></div>
                             <div class="pestana-campo"><b>Fecha de sesión:</b> <span id="pestana-fecha-sesion"></span></div>
                         </div>
@@ -859,11 +859,11 @@ fetch('/shared/navbar.view.html')
 
             // Indicador de carga: actualizar los campos existentes en lugar de reemplazar todo el contenedor
             const versionEl = document.getElementById('pestana-version')
-            const modificadoEl = document.getElementById('pestana-modificado-por')
+            
             const acuerdoEl = document.getElementById('pestana-acuerdo')
             const fechaEl = document.getElementById('pestana-fecha-sesion')
             if (versionEl) versionEl.textContent = 'Cargando...'
-            if (modificadoEl) modificadoEl.textContent = ''
+
             if (acuerdoEl) acuerdoEl.textContent = ''
             if (fechaEl) fechaEl.textContent = ''
 
@@ -883,12 +883,12 @@ fetch('/shared/navbar.view.html')
 
                 // Mapeo flexible de campos (ajustable según respuesta real de la API)
                 const version = traz.version || traz.estado_vigencia || traz.version_num || ''
-                const modificadoPor = traz.modificado_por || traz.usuario || traz.modificado_por_nombre || ''
+                
                 const acuerdo = traz.acuerdo || traz.numero_resolucion || traz.resolucion || ''
                 const fechaSesion = traz.fecha_sesion || traz.fecha || traz.fecha_emision || ''
 
                 document.getElementById('pestana-version').textContent = version || ''
-                document.getElementById('pestana-modificado-por').textContent = modificadoPor || ''
+
                 document.getElementById('pestana-acuerdo').textContent = acuerdo || ''
                 document.getElementById('pestana-fecha-sesion').textContent = fechaSesion ? formatearFecha(fechaSesion) : ''
 
