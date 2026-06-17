@@ -39,6 +39,7 @@ DROP TABLE IF EXISTS bitacora_asambleistas        CASCADE;
 DROP TABLE IF EXISTS asambleista                  CASCADE;
 DROP TABLE IF EXISTS catalogo_maestro             CASCADE;
 DROP TABLE IF EXISTS sys_log_auditoria            CASCADE;
+DROP TABLE IF EXISTS catalogo_nota_condicional    CASCADE;
 DROP TABLE IF EXISTS sys_rol_permiso              CASCADE;
 DROP TABLE IF EXISTS sys_usuario_rol              CASCADE;
 DROP TABLE IF EXISTS sys_permiso                  CASCADE;
