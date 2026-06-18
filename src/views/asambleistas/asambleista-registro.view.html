@@ -58,7 +58,9 @@ fetch('/shared/navbar.view.html')
         const id = params.get('id')
 
         async function cargarAsambleista(id) {
-            const respuesta = await fetch(`/api/asambleistas/${id}`)
+            const respuesta = await fetch(`/api/asambleistas/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             const datos = await respuesta.json()
 
             document.getElementById('titulo-formulario').textContent = 'Editar Asambleísta'
@@ -83,8 +85,16 @@ fetch('/shared/navbar.view.html')
             const datos = { cedula, nombre, correo_institucional: correo, razon_cambio: razon }
 
             const respuesta = id
-                ? await fetch(`/api/asambleistas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
-                : await fetch('/api/asambleistas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
+                ? await fetch(`/api/asambleistas/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                })
+                : await fetch('/api/asambleistas', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                })
 
             if (respuesta.ok) {
                 window.location.href = 'asambleista-lista.view.html'
