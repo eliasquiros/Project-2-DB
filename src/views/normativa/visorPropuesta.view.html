@@ -7,8 +7,8 @@
         const rol = localStorage.getItem('rol');
         if (!rol || !localStorage.getItem('token')) {
             window.location.href = '/auth/login.view.html';
-        } else if (rol !== 'ADMIN' && rol !== 'ASAMBLEISTA') {
-            alert('Acceso restringido: Esta vista solo es accesible para Administradores y Asambleístas.');
+        } else if (rol !== 'ADMIN' && rol !== 'SECRETARIA') {
+            alert('Acceso restringido: Esta vista solo es accesible para Administradores y secretarias.');
             window.location.href = '/normativa/reglamento-arbol.view.html';
         }
     </script>
