@@ -53,6 +53,36 @@ const obtenerTiposReforma = async () => {
 const crearPropuesta = async (datos, id_usuario) => {
     return ejecutarConAuditoria(id_usuario, async (client) => {
 
+        // Aceptar `datos` como objeto o como array posicional.
+        // Si viene como array, mapear al objeto con el orden esperado
+        if (Array.isArray(datos)) {
+            const [
+                id_reglamento_base,
+                id_etapa_propuesta,
+                id_estado_propuesta,
+                id_propuesta_padre,
+                titulo,
+                texto_sustitutivo,
+                codigo_air,
+                id_tipo_mayoria_requerida,
+                proponentes,
+                elementos_afectados
+            ] = datos
+
+            datos = {
+                id_reglamento_base,
+                id_etapa_propuesta,
+                id_estado_propuesta,
+                id_propuesta_padre,
+                titulo,
+                texto_sustitutivo,
+                codigo_air,
+                id_tipo_mayoria_requerida,
+                proponentes,
+                elementos_afectados
+            }
+        }
+
         // 1. Insertar la propuesta principal
         const queryPropuesta = `
             INSERT INTO propuesta (
@@ -67,24 +97,77 @@ const crearPropuesta = async (datos, id_usuario) => {
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
         `
-        const resultPropuesta = await client.query(queryPropuesta, [
-            datos.id_reglamento_base || null,
-            datos.id_etapa_propuesta,
-            datos.id_estado_propuesta,
-            datos.id_propuesta_padre || null,
+
+        // Normalizar valores numéricos discretos (evitar perder precisión por ser BigInt en JS)
+        const toIntOrNull = (v) => {
+            if (v === null || v === undefined || v === '') return null
+            const str = v.toString().trim()
+            return /^\d+$/.test(str) ? str : null
+        }
+
+        const valoresPropuesta = [
+            toIntOrNull(datos.id_reglamento_base),
+            toIntOrNull(datos.id_etapa_propuesta),
+            toIntOrNull(datos.id_estado_propuesta),
+            toIntOrNull(datos.id_propuesta_padre),
             datos.titulo,
             datos.texto_sustitutivo || null,
             datos.codigo_air || null,
-            datos.id_tipo_mayoria_requerida
-        ])
+            toIntOrNull(datos.id_tipo_mayoria_requerida)
+        ]
+
+        // Preparando valores para insertar la propuesta (no se muestran en logs)
+
+        const resultPropuesta = await client.query(queryPropuesta, valoresPropuesta)
         const propuesta = resultPropuesta.rows[0]
 
         // 2. Insertar los proponentes (relación N:M)
-        if (datos.proponentes && datos.proponentes.length > 0) {
-            for (const id_asambleista of datos.proponentes) {
+        // Aceptar diferentes formas de envío desde el cliente: array de ids, array de objetos {id, nombre}, or array de strings
+        const rawProponentes = Array.isArray(datos.proponentes) ? datos.proponentes : []
+
+        const extractId = (p) => {
+            if (p === null || p === undefined) return null
+            if (typeof p === 'string') {
+                const s = p.trim()
+                if (s === '') return null
+                return s // keep as string to preserve bigint precision
+            }
+            if (typeof p === 'number') {
+                // Convert number to string; note very large numbers may already have lost precision
+                return String(p)
+            }
+            if (typeof p === 'object') {
+                const val = p.id || p.asambleista_id || p.asambleistaId || p.value || null
+                return val == null ? null : String(val)
+            }
+            return null
+        }
+
+        // Preserve ids as digit-strings to avoid JS Number precision loss on bigints
+        const proponentesIds = rawProponentes
+            .map(extractId)
+            .filter(v => v !== null && v !== undefined && v !== '' && /^\d+$/.test(String(v)))
+
+        if (proponentesIds.length > 0) {
+            // Validar que los asambleístas existan para evitar violaciones de FK
+            // Usamos comparaciones sobre texto para preservar precisión de bigint
+            const foundRes = await client.query(
+                `SELECT asambleista_id::text AS asambleista_id FROM asambleista WHERE asambleista_id::text = ANY($1::text[])`,
+                [proponentesIds]
+            )
+            const foundIds = new Set(foundRes.rows.map(r => r.asambleista_id))
+            const missing = proponentesIds.filter(id => !foundIds.has(String(id)))
+
+            if (missing.length > 0) {
+                const err = new Error('Proponentes no encontrados: ' + missing.join(', '))
+                err.isClient = true
+                throw err
+            }
+
+            for (const id_asambleista of proponentesIds) {
                 await client.query(
                     `INSERT INTO proponente_propuesta (id_propuesta, id_asambleista, fecha_registro)
-                     VALUES ($1, $2, CURRENT_DATE)
+                     VALUES ($1, $2::bigint, CURRENT_DATE)
                      ON CONFLICT (id_propuesta, id_asambleista) DO NOTHING`,
                     [propuesta.id_propuesta, id_asambleista]
                 )
@@ -170,7 +253,6 @@ const obtenerPorId = async (id_propuesta) => {
             p.codigo_air,
             p.texto_sustitutivo,
             p.id_reglamento_base,
-            p.id_etapa_propuesta,
             p.id_estado_propuesta,
             p.id_tipo_mayoria_requerida,
             p.id_propuesta_padre,

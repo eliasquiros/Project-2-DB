@@ -509,6 +509,8 @@ fetch('/shared/navbar.view.html')
                         </div>
                     </div>
 
+                    <!-- Propuestas registradas: lista removida por privacidad -->
+
                     <!-- Proponentes -->
                     <div class="seccion">
                         <div class="seccion-titulo">Gestión de Proponentes</div>
@@ -590,17 +592,6 @@ fetch('/shared/navbar.view.html')
 
 
 
-    <!-- ═══ MODAL DE DETALLE ═══ -->
-    <div class="modal-overlay" id="modal-detalle">
-        <div class="modal-panel">
-            <div class="modal-header">
-                <h2 id="modal-titulo">Detalle de Propuesta</h2>
-                <button class="modal-cerrar" onclick="cerrarModal()">✕</button>
-            </div>
-            <div id="modal-contenido"></div>
-        </div>
-    </div>
-
     <script>
         // ── Estado global ────────────────────────────────────────
         function getToken() { return localStorage.getItem('token') }
@@ -615,7 +606,6 @@ fetch('/shared/navbar.view.html')
             cargarUsuario()
             await cargarCatalogos()
             await cargarAsambleistas()
-            cargarPropuestas()
             initModalidadTabs()
             initProponenteBuscador()
         })
@@ -809,7 +799,8 @@ fetch('/shared/navbar.view.html')
                 const opcion = e.target.closest('.proponente-opcion')
                 if (!opcion || !opcion.dataset.id) return
 
-                agregarProponente(parseInt(opcion.dataset.id), opcion.dataset.nombre)
+                // Preserve id as string to avoid precision loss with very large bigint ids
+                agregarProponente(opcion.dataset.id, opcion.dataset.nombre)
                 input.value = ''
                 dropdown.classList.remove('visible')
             })
@@ -853,7 +844,8 @@ fetch('/shared/navbar.view.html')
             container.querySelectorAll('.tag-cerrar').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation()
-                    removerProponente(parseInt(btn.dataset.id))
+                    // dataset values are strings; compare as strings to preserve bigint precision
+                    removerProponente(btn.dataset.id)
                 })
             })
         }
@@ -871,7 +863,6 @@ fetch('/shared/navbar.view.html')
                 })
                 mostrarAlerta('Borrador guardado exitosamente. ID: ' + resultado.propuesta.id_propuesta, 'exito')
                 limpiarFormulario()
-                cargarPropuestas()
             } catch (error) {
                 mostrarAlerta('Error al guardar borrador: ' + error.message, 'error')
             } finally {
@@ -898,7 +889,6 @@ fetch('/shared/navbar.view.html')
                 })
                 mostrarAlerta('Propuesta presentada exitosamente. Estado: Pendiente de Revisión. ID: ' + resultado.propuesta.id_propuesta, 'exito')
                 limpiarFormulario()
-                cargarPropuestas()
             } catch (error) {
                 mostrarAlerta('Error al presentar propuesta: ' + error.message, 'error')
             } finally {
@@ -936,7 +926,7 @@ fetch('/shared/navbar.view.html')
             // Recopilar elementos seleccionados del árbol
             const checkboxes = document.querySelectorAll('#arbol-seleccion input[type="checkbox"]:checked')
             const elementos_afectados = Array.from(checkboxes).map(cb => ({
-                id_elemento: parseInt(cb.value),
+                id_elemento: cb.value.toString(),
                 modalidad_reforma: modalidadActual,
                 cuerpo_propuesta: justificacion || null,
                 link_documentacion: link_doc || null
@@ -944,40 +934,12 @@ fetch('/shared/navbar.view.html')
 
             return {
                 titulo,
-                id_reglamento_base: id_reglamento_base ? parseInt(id_reglamento_base) : null,
-                id_etapa_propuesta: parseInt(id_etapa_propuesta),
-                id_tipo_mayoria_requerida: parseInt(id_tipo_mayoria_requerida),
+                id_reglamento_base: id_reglamento_base ? id_reglamento_base.toString() : null,
+                id_etapa_propuesta: id_etapa_propuesta ? id_etapa_propuesta.toString() : null,
+                id_tipo_mayoria_requerida: id_tipo_mayoria_requerida ? id_tipo_mayoria_requerida.toString() : null,
                 texto_sustitutivo: modalidadActual === 'SUSTITUTIVO' ? justificacion : null,
-                proponentes: proponentesSeleccionados.map(p => p.id),
+                proponentes: proponentesSeleccionados.map(p => p.id.toString()),
                 elementos_afectados
-            }
-        }
-
-        // ── Cargar lista de propuestas existentes ────────────────
-        async function cargarPropuestas() {
-            const tbody = document.getElementById('propuestas-tbody')
-            try {
-                const propuestas = await fetchAPI('/api/propuestas')
-                if (propuestas.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.2rem;color:var(--color-texto-suave);">No hay propuestas registradas.</td></tr>'
-                    return
-                }
-
-                tbody.innerHTML = propuestas.map(p => `
-                    <tr>
-                        <td>${p.id_propuesta}</td>
-                        <td>${escaparHTML(p.titulo)}</td>
-                        <td>${escaparHTML(p.reglamento || '—')}</td>
-                        <td>${escaparHTML(p.etapa)}</td>
-                        <td><span class="badge ${claseBadge(p.estado)}">${escaparHTML(p.estado)}</span></td>
-                        <td>${escaparHTML(p.tipo_mayoria)}</td>
-                        <td>
-                            <button class="btn btn-secundario btn-compacto" onclick="verDetalle(${p.id_propuesta})">Ver</button>
-                        </td>
-                    </tr>
-                `).join('')
-            } catch (error) {
-                tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--color-error);padding:1rem;">Error: ${error.message}</td></tr>`
             }
         }
 
@@ -992,65 +954,7 @@ fetch('/shared/navbar.view.html')
             return mapa[estado] || 'badge-pendiente'
         }
 
-        // ── Ver detalle de una propuesta ─────────────────────────
-        async function verDetalle(id) {
-            try {
-                const p = await fetchAPI(`/api/propuestas/${id}`)
-                const contenido = document.getElementById('modal-contenido')
-                document.getElementById('modal-titulo').textContent = `Propuesta #${p.id_propuesta}`
-
-                let html = `
-                    <div class="detalle-campo"><b>Título:</b> ${escaparHTML(p.titulo)}</div>
-                    <div class="detalle-campo"><b>Reglamento:</b> ${escaparHTML(p.reglamento || '—')}</div>
-                    <div class="detalle-campo"><b>Etapa:</b> ${escaparHTML(p.etapa)}</div>
-                    <div class="detalle-campo"><b>Estado:</b> <span class="badge ${claseBadge(p.estado)}">${escaparHTML(p.estado)}</span></div>
-                    <div class="detalle-campo"><b>Tipo de Mayoría:</b> ${escaparHTML(p.tipo_mayoria)}</div>
-                    <div class="detalle-campo"><b>Código AIR:</b> ${escaparHTML(p.codigo_air || 'Pendiente')}</div>
-                `
-
-                if (p.texto_sustitutivo) {
-                    html += `<div class="detalle-campo"><b>Texto sustitutivo / Justificación:</b><br><div style="background:#f8f9fa;padding:0.6rem;border-radius:4px;margin-top:0.3rem;font-size:0.88rem;white-space:pre-wrap;">${escaparHTML(p.texto_sustitutivo)}</div></div>`
-                }
-
-                // Proponentes
-                if (p.proponentes && p.proponentes.length > 0) {
-                    html += `
-                        <div class="detalle-seccion">
-                            <h3>Proponentes</h3>
-                            <div class="chip-list">
-                                ${p.proponentes.map(pr => `<span class="chip">${escaparHTML(pr.nombre)} (${pr.cedula || ''})</span>`).join('')}
-                            </div>
-                        </div>
-                    `
-                }
-
-                // Elementos afectados
-                if (p.elementos_afectados && p.elementos_afectados.length > 0) {
-                    html += `
-                        <div class="detalle-seccion">
-                            <h3>Elementos Normativos Afectados</h3>
-                            ${p.elementos_afectados.map(e => `
-                                <div style="margin-bottom:0.5rem;padding:0.4rem 0.6rem;background:#f8f9fa;border-radius:4px;">
-                                    <div><b>${escaparHTML(e.nivel)}:</b> ${escaparHTML(e.numero_etiqueta)}</div>
-                                    <div style="font-size:0.82rem;color:var(--color-texto-suave);">Modalidad: ${escaparHTML(e.modalidad_reforma)}</div>
-                                    ${e.cuerpo_propuesta ? `<div style="font-size:0.85rem;margin-top:0.3rem;white-space:pre-wrap;">${escaparHTML(e.cuerpo_propuesta)}</div>` : ''}
-                                    ${e.link_documentacion ? `<div style="font-size:0.82rem;margin-top:0.2rem;"><a href="${escaparHTML(e.link_documentacion)}" target="_blank" style="color:var(--color-primario);">Documentación ↗</a></div>` : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    `
-                }
-
-                contenido.innerHTML = html
-                document.getElementById('modal-detalle').classList.add('visible')
-            } catch (error) {
-                mostrarAlerta('Error al cargar detalle: ' + error.message, 'error')
-            }
-        }
-
-        function cerrarModal() {
-            document.getElementById('modal-detalle').classList.remove('visible')
-        }
+        
 
         // ── Helpers ──────────────────────────────────────────────
         async function fetchAPI(url, options = {}) {
@@ -1157,10 +1061,7 @@ fetch('/shared/navbar.view.html')
                 .replace(/'/g, '&#039;')
         }
 
-        // Cerrar modal con Escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') cerrarModal()
-        })
+        // (Detalle de propuestas removido; no hay modal local para cerrar)
     </script>
 </body>
 </html>

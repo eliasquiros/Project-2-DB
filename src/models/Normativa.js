@@ -52,6 +52,18 @@ const obtenerReglamentos = async () => {
     return resultado.rows
 }
 
+// Obtener un reglamento por su id (utilizado por el controlador para validar FK)
+const obtenerReglamentoPorId = async (id_reglamento) => {
+    const query = `
+        SELECT id_reglamento, nombre_normativa, sigla
+        FROM reglamento
+        WHERE id_reglamento = $1
+        LIMIT 1
+    `
+    const resultado = await pool.query(query, [id_reglamento])
+    return resultado.rows[0] || null
+}
+
 // Construye árbol anidado desde lista plana
 const construirArbolAnidado = (filas) => {
     const mapa = {}
@@ -150,6 +162,7 @@ module.exports = {
     insertarReforma,
     obtenerHistorialReformas,
     obtenerReglamentos,
+    obtenerReglamentoPorId,
     generarArbolRecursivo,
     obtenerTrazabilidad
 };
