@@ -327,7 +327,7 @@ const cambiarEstado = async (id_propuesta, id_nuevo_estado, id_usuario) => {
 
         // Actualizar el estado
         const resultado = await client.query(
-            `UPDATE propuesta SET id_estado_propuesta = $1 WHERE id_propuesta = $2 RETURNING *`,
+            `UPDATE propuesta SET id_estado_propuesta = $1::bigint WHERE id_propuesta = $2 RETURNING *`,
             [id_nuevo_estado, id_propuesta]
         )
 
@@ -337,7 +337,7 @@ const cambiarEstado = async (id_propuesta, id_nuevo_estado, id_usuario) => {
                 id_propuesta, id_reglamento_base, id_etapa_propuesta,
                 id_estado_propuesta, titulo, codigo_air,
                 fecha_modificacion, usuario_modificacion
-             ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, $7)`,
+             ) VALUES ($1, $2, $3, $4::bigint, $5, $6, CURRENT_TIMESTAMP, $7)`,
             [
                 id_propuesta,
                 prop.id_reglamento_base,

@@ -569,7 +569,7 @@
                 label.className = `estado-opcion-label`;
                 label.dataset.claseActiva = claseActiva;
                 label.innerHTML = `
-                    <input type="radio" name="estado_propuesta_radio" value="${est.id_item}" onchange="cambiarEstadoPropuesta(${est.id_item})">
+                    <input type="radio" name="estado_propuesta_radio" value="${est.id_item}" onchange="cambiarEstadoPropuesta(this.value)">
                     <span>${est.nombre}</span>
                 `;
                 containerRadio.appendChild(label);

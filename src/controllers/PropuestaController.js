@@ -203,19 +203,31 @@ const validarYPresentar = async (req, res) => {
 const cambiarEstado = async (req, res) => {
     try {
         const { id } = req.params
-        const { id_estado_propuesta } = req.body
+        let { id_estado_propuesta } = req.body
 
-        if (!id || !/^\d+$/.test(id.toString())) {
+        if (!id || !/^\d+$/.test(String(id))) {
             return res.status(400).json({ error: 'ID de propuesta inválido.' })
         }
 
-        if (!id_estado_propuesta) {
+        if (id_estado_propuesta === undefined || id_estado_propuesta === null || String(id_estado_propuesta).trim() === '') {
             return res.status(400).json({ error: 'El nuevo estado es obligatorio.' })
+        }
+
+        const idEstadoStr = String(id_estado_propuesta).trim()
+        if (!/^\d+$/.test(idEstadoStr)) {
+            return res.status(400).json({ error: 'ID de estado inválido.' })
+        }
+
+        // Validar que el estado exista en el catálogo de estados de propuesta
+        const estados = await Propuesta.obtenerEstadosPropuesta()
+        const existe = estados.some(e => String(e.id_item) === idEstadoStr)
+        if (!existe) {
+            return res.status(400).json({ error: `Estado no válido: ${id_estado_propuesta}` })
         }
 
         const resultado = await Propuesta.cambiarEstado(
             id,
-            id_estado_propuesta,
+            idEstadoStr,
             req.usuario.id
         )
 
