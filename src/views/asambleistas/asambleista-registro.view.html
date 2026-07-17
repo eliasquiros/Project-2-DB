@@ -1,11 +1,31 @@
 <!DOCTYPE html>
 <html lang="es">
-<head>
+<head><script src="/shared/auth.js"></script>
     <link rel="stylesheet" href="/shared/global.css">
     <meta charset="UTF-8">
     <title>Registro de Asambleísta - Sistema AIR</title>
 </head>
 <body>
+<div id="navbar-container"></div>
+<script>
+fetch('/shared/navbar.view.html')
+    .then(r => r.text())
+    .then(html => {
+        document.getElementById('navbar-container').innerHTML = html
+        const rol = localStorage.getItem('rol')
+        const username = localStorage.getItem('username')
+        if (!rol || !localStorage.getItem('token')) {
+            window.location.href = '/auth/login.view.html'
+            return
+        }
+        const spanUsuario = document.getElementById('nav-nombre-usuario')
+        if (spanUsuario && username) spanUsuario.textContent = username
+        const rolClass = 'rol-' + rol.toLowerCase()
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.classList.contains(rolClass)) item.style.display = 'list-item'
+        })
+    })
+</script>
     <h1 id="titulo-formulario">Nuevo Asambleísta</h1>
 
     <form id="formulario-asambleista">
@@ -34,18 +54,13 @@
     </form>
      <script>
         const token = localStorage.getItem('token')
-
-        const res = await fetch('/api/reglamentos', {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        })
         const params = new URLSearchParams(window.location.search)
         const id = params.get('id')
 
         async function cargarAsambleista(id) {
-            const respuesta = await fetch(`/api/asambleistas/${id}`)
+            const respuesta = await fetch(`/api/asambleistas/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
             const datos = await respuesta.json()
 
             document.getElementById('titulo-formulario').textContent = 'Editar Asambleísta'
@@ -70,8 +85,16 @@
             const datos = { cedula, nombre, correo_institucional: correo, razon_cambio: razon }
 
             const respuesta = id
-                ? await fetch(`/api/asambleistas/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
-                : await fetch('/api/asambleistas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) })
+                ? await fetch(`/api/asambleistas/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                })
+                : await fetch('/api/asambleistas', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                })
 
             if (respuesta.ok) {
                 window.location.href = 'asambleista-lista.view.html'

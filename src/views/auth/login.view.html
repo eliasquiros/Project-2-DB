@@ -68,6 +68,7 @@
             if (respuesta.ok) {
                 localStorage.setItem('token', datos.token)
                 localStorage.setItem('rol', datos.rol)
+                localStorage.setItem('username', datos.username)
                 window.location.href = '../asambleistas/asambleista-lista.view.html'
             } else {
                 alerta.textContent = datos.error || 'Credenciales incorrectas.'

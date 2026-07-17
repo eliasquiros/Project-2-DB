@@ -45,11 +45,11 @@ const obtenerPorId = async (req, res) => {
     try {
         const { id } = req.params
 
-        if (!id || isNaN(id)) {
+        if (!id || !/^\d+$/.test(id.toString())) {
             return res.status(400).json({ error: 'ID de propuesta inválido.' })
         }
 
-        const propuesta = await Propuesta.obtenerPorId(parseInt(id))
+        const propuesta = await Propuesta.obtenerPorId(id)
 
         if (!propuesta) {
             return res.status(404).json({ error: 'Propuesta no encontrada.' })
@@ -105,9 +105,24 @@ const crearPropuesta = async (req, res) => {
             return res.status(400).json({ error: 'Debe seleccionar al menos un elemento normativo afectado.' })
         }
 
+        // Body recibido (no se loguea para evitar exponer datos sensibles)
+
+        // Normalizar id_reglamento_base: verificar si es ID válido o dejar null
+        let idReglamentoVal = (id_reglamento_base && /^\d+$/.test(id_reglamento_base.toString())) ? id_reglamento_base.toString() : null
+
+        // Si se proporcionó un reglamento, validar que exista para evitar violación de FK
+        if (idReglamentoVal !== null) {
+            const regl = await Normativa.obtenerReglamentoPorId(idReglamentoVal)
+            if (!regl) {
+                return res.status(400).json({ error: 'Reglamento base no encontrado' })
+            }
+        }
+
+        // id_reglamento_base normalizado (no logueado)
+
         const propuesta = await Propuesta.crearPropuesta({
             titulo: titulo.trim(),
-            id_reglamento_base,
+            id_reglamento_base: idReglamentoVal,
             id_etapa_propuesta,
             id_estado_propuesta,
             id_tipo_mayoria_requerida,
@@ -124,8 +139,11 @@ const crearPropuesta = async (req, res) => {
         })
 
     } catch (error) {
-        console.error('Error al crear propuesta:', error.message)
-        res.status(500).json({ error: 'Error interno al crear la propuesta.' })
+        console.error('Error al crear propuesta:', error)
+        if (error && error.isClient) {
+            return res.status(400).json({ error: error.message })
+        }
+        res.status(500).json({ error: error.message || 'Error interno al crear la propuesta.' })
     }
 }
 
@@ -145,12 +163,14 @@ const guardarBorrador = async (req, res) => {
         // Forzar el estado a Borrador
         req.body.id_estado_propuesta = borrador.id_item
 
+        // id_estado_propuesta establecido a Borrador
+
         // Delegar al método de creación normal
         return crearPropuesta(req, res)
 
     } catch (error) {
-        console.error('Error al guardar borrador:', error.message)
-        res.status(500).json({ error: 'Error interno al guardar el borrador.' })
+        console.error('Error al guardar borrador:', error)
+        res.status(500).json({ error: error.message || 'Error interno al guardar el borrador.' })
     }
 }
 
@@ -168,11 +188,13 @@ const validarYPresentar = async (req, res) => {
 
         req.body.id_estado_propuesta = pendiente.id_item
 
+        // id_estado_propuesta establecido a Pendiente de Revisión
+
         return crearPropuesta(req, res)
 
     } catch (error) {
-        console.error('Error al validar y presentar:', error.message)
-        res.status(500).json({ error: 'Error interno al presentar la propuesta.' })
+        console.error('Error al validar y presentar:', error)
+        res.status(500).json({ error: error.message || 'Error interno al presentar la propuesta.' })
     }
 }
 
@@ -181,19 +203,31 @@ const validarYPresentar = async (req, res) => {
 const cambiarEstado = async (req, res) => {
     try {
         const { id } = req.params
-        const { id_estado_propuesta } = req.body
+        let { id_estado_propuesta } = req.body
 
-        if (!id || isNaN(id)) {
+        if (!id || !/^\d+$/.test(String(id))) {
             return res.status(400).json({ error: 'ID de propuesta inválido.' })
         }
 
-        if (!id_estado_propuesta) {
+        if (id_estado_propuesta === undefined || id_estado_propuesta === null || String(id_estado_propuesta).trim() === '') {
             return res.status(400).json({ error: 'El nuevo estado es obligatorio.' })
         }
 
+        const idEstadoStr = String(id_estado_propuesta).trim()
+        if (!/^\d+$/.test(idEstadoStr)) {
+            return res.status(400).json({ error: 'ID de estado inválido.' })
+        }
+
+        // Validar que el estado exista en el catálogo de estados de propuesta
+        const estados = await Propuesta.obtenerEstadosPropuesta()
+        const existe = estados.some(e => String(e.id_item) === idEstadoStr)
+        if (!existe) {
+            return res.status(400).json({ error: `Estado no válido: ${id_estado_propuesta}` })
+        }
+
         const resultado = await Propuesta.cambiarEstado(
-            parseInt(id),
-            id_estado_propuesta,
+            id,
+            idEstadoStr,
             req.usuario.id
         )
 
@@ -218,11 +252,11 @@ const obtenerBitacora = async (req, res) => {
     try {
         const { id } = req.params
 
-        if (!id || isNaN(id)) {
+        if (!id || !/^\d+$/.test(id.toString())) {
             return res.status(400).json({ error: 'ID de propuesta inválido.' })
         }
 
-        const bitacora = await Propuesta.obtenerBitacora(parseInt(id))
+        const bitacora = await Propuesta.obtenerBitacora(id)
         res.json(bitacora)
 
     } catch (error) {

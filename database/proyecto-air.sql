@@ -28,6 +28,7 @@ DROP TABLE IF EXISTS nombramiento                 CASCADE;
 DROP TABLE IF EXISTS asistencia_sesion_plenaria   CASCADE;
 DROP TABLE IF EXISTS resolucion                   CASCADE;
 DROP TABLE IF EXISTS punto_agenda                 CASCADE;
+DROP TABLE IF EXISTS propuesta_elemento_afectado CASCADE;
 DROP TABLE IF EXISTS proponente_propuesta         CASCADE;
 DROP TABLE IF EXISTS bitacora_propuesta           CASCADE;
 DROP TABLE IF EXISTS propuesta                    CASCADE;
@@ -39,6 +40,7 @@ DROP TABLE IF EXISTS bitacora_asambleistas        CASCADE;
 DROP TABLE IF EXISTS asambleista                  CASCADE;
 DROP TABLE IF EXISTS catalogo_maestro             CASCADE;
 DROP TABLE IF EXISTS sys_log_auditoria            CASCADE;
+DROP TABLE IF EXISTS catalogo_nota_condicional    CASCADE;
 DROP TABLE IF EXISTS sys_rol_permiso              CASCADE;
 DROP TABLE IF EXISTS sys_usuario_rol              CASCADE;
 DROP TABLE IF EXISTS sys_permiso                  CASCADE;
@@ -233,6 +235,14 @@ CREATE TABLE proponente_propuesta (
     fecha_registro          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (id_propuesta, id_asambleista)
 );
+CREATE TABLE IF NOT EXISTS propuesta_elemento_afectado (
+          id_propuesta_elemento SERIAL PRIMARY KEY,
+          id_propuesta          INT NOT NULL REFERENCES propuesta(id_propuesta) ON DELETE CASCADE,
+          id_elemento           INT NOT NULL REFERENCES elemento_normativo(id_elemento),
+          modalidad_reforma     VARCHAR(50) NOT NULL,
+          cuerpo_propuesta      TEXT,
+          link_documentacion    TEXT
+);
 
 -- Puente entre las sesiones y propuestas (cuando suceden dentro de la sesión)
 CREATE TABLE punto_agenda (
@@ -389,8 +399,8 @@ INSERT INTO control_folio (anio, ultimo_numero) VALUES (2026, 0);
 
 -- Insertar usuarios
 INSERT INTO sys_usuario (username, password_hash, email, activo) VALUES
-('secretaria', '1234', 'secretaria@tec.ac.cr', true),
-('asambleista', '1234', 'asambleista@tec.ac.cr', true);
+('secretaria', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'secretaria@tec.ac.cr', true),
+('asambleista', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'asambleista@tec.ac.cr', true);
 
 -- Asignar roles
 INSERT INTO sys_usuario_rol (id_usuario, id_rol) VALUES
@@ -462,24 +472,24 @@ BEGIN
     --   2. Nombramiento activo cuya fecha_fin cae después del inicio del nuevo
     SELECT COUNT(*) INTO traslape_encontrado
     FROM nombramiento
-    WHERE asambleista_id = NEW.asambleista_id
+    WHERE asambleista_id = (NEW).asambleista_id
       AND estado         = 'ACTIVO'
       AND (
           -- Caso 1: nombramiento vigente sin fecha de fin definida
         fecha_fin IS NULL
         OR
           -- Caso 2: el rango existente se solapa con el nuevo
-        fecha_inicio <= COALESCE(NEW.fecha_fin, '9999-12-31')
-        AND COALESCE(fecha_fin, '9999-12-31') >= NEW.fecha_inicio
+        fecha_inicio <= COALESCE((NEW).fecha_fin, '9999-12-31')
+        AND COALESCE(fecha_fin, '9999-12-31') >= (NEW).fecha_inicio
       );
 
     -- Si encontró al menos un traslape, bloquea la inserción
     IF traslape_encontrado > 0 THEN
         RAISE EXCEPTION 
             'TRASLAPE_SECTOR: El asambleísta con ID % ya tiene un nombramiento ACTIVO que se solapa con las fechas indicadas (% a %). Finalice el nombramiento vigente antes de crear uno nuevo.',
-            NEW.asambleista_id,
-            NEW.fecha_inicio,
-            COALESCE(NEW.fecha_fin::TEXT, 'indefinido');
+            (NEW).asambleista_id,
+            (NEW).fecha_inicio,
+            COALESCE((NEW).fecha_fin::TEXT, 'indefinido');
     END IF;
 
     RETURN NEW;
@@ -512,7 +522,7 @@ BEGIN
     IF TG_OP = 'UPDATE' THEN
         RAISE EXCEPTION
             'NO_REPUDIO: La certificación con folio % es un documento oficial emitido y no puede ser modificada. Contacte a la Secretaría AIR para su anulación formal.',
-            OLD.folio_unico;
+            (OLD).folio_unico;
     END IF;
 
     -- Bloquea cualquier intento de DELETE directo sobre la tabla.
@@ -521,7 +531,7 @@ BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION
             'NO_REPUDIO: La certificación con folio % no puede ser eliminada. El sistema de fe pública exige inmutabilidad total del registro original.',
-            OLD.folio_unico;
+            (OLD).folio_unico;
     END IF;
 
     RETURN OLD;
@@ -575,7 +585,7 @@ BEGIN
     -- Construye el folio en formato DAIR-000-AÑO.
     -- FM elimina espacios de relleno en to_char.
     -- El número crece naturalmente si supera 3 dígitos (ej. DAIR-1000-2025).
-    folio_generado := 'DAIR-' || to_char(nuevo_numero, 'FM000') || '-' || anio_actual::TEXT;
+    folio_generado := 'DAIR-' || lpad(nuevo_numero::TEXT, 3, '0') || '-' || anio_actual::TEXT;
 
     -- Asigna el folio generado a la fila que se va a insertar
     NEW.folio_unico := folio_generado;
@@ -603,35 +613,26 @@ CREATE TRIGGER tg_folio_secuencial
 --            SET LOCAL antes de cada operación auditada.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION fn_auditoria_total()
+-- NOTA TÉCNICA: CockroachDB tipa la variable NEW/OLD de forma estática
+-- según la primera tabla asociada a la función, a diferencia de PostgreSQL
+-- que la resuelve dinámicamente por cada trigger. Por eso una sola función
+-- de auditoría compartida entre 3 tablas con columnas distintas no es
+-- viable aquí: se separó en 3 funciones idénticas en lógica, una por tabla.
+
+CREATE OR REPLACE FUNCTION fn_auditoria_asambleista()
 RETURNS TRIGGER AS $$
 DECLARE
     usuario_id_log  INT;
     registro_id_log INT;
     detalle_log     TEXT;
 BEGIN
-    -- Lee el id del usuario activo desde la variable de sesión.
-    -- El true evita error si la variable no existe, devuelve NULL.
     usuario_id_log := current_setting('app.usuario_id', true)::INT;
 
-    -- Determina el id del registro afectado según la operación.
-    -- En DELETE usa OLD porque NEW no existe.
-    -- En INSERT y UPDATE usa NEW.
     IF TG_OP = 'DELETE' THEN
-        CASE TG_TABLE_NAME
-            WHEN 'asambleista'  THEN registro_id_log := OLD.asambleista_id;
-            WHEN 'nombramiento' THEN registro_id_log := OLD.id_nombramiento;
-            WHEN 'resolucion'   THEN registro_id_log := OLD.id_resolucion;
-        END CASE;
+        registro_id_log := (OLD).asambleista_id;
         detalle_log := 'Registro eliminado. ID: ' || registro_id_log::TEXT;
     ELSE
-        CASE TG_TABLE_NAME
-            WHEN 'asambleista'  THEN registro_id_log := NEW.asambleista_id;
-            WHEN 'nombramiento' THEN registro_id_log := NEW.id_nombramiento;
-            WHEN 'resolucion'   THEN registro_id_log := NEW.id_resolucion;
-        END CASE;
-
-        -- En UPDATE registra qué cambió comparando OLD y NEW
+        registro_id_log := (NEW).asambleista_id;
         IF TG_OP = 'UPDATE' THEN
             detalle_log := 'Registro actualizado. ID: ' || registro_id_log::TEXT;
         ELSE
@@ -639,23 +640,10 @@ BEGIN
         END IF;
     END IF;
 
-    -- Inserta el log con todos los datos disponibles.
-    
     INSERT INTO sys_log_auditoria (
-        id_usuario,
-        accion,
-        tabla_afectada,
-        registro_id,
-        detalle,
-        fecha_hora
+        id_usuario, accion, tabla_afectada, registro_id, detalle, fecha_hora
     ) VALUES (
-        usuario_id_log,
-        TG_OP,
-        TG_TABLE_NAME,
-        registro_id_log,
-        detalle_log,
-        CURRENT_TIMESTAMP
-        
+        usuario_id_log, TG_OP, TG_TABLE_NAME, registro_id_log, detalle_log, CURRENT_TIMESTAMP
     );
 
     RETURN NULL;
@@ -666,21 +654,84 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER tg_auditoria_asambleista
     AFTER INSERT OR UPDATE OR DELETE ON asambleista
     FOR EACH ROW
-    EXECUTE FUNCTION fn_auditoria_total();
+    EXECUTE FUNCTION fn_auditoria_asambleista();
+
+CREATE OR REPLACE FUNCTION fn_auditoria_nombramiento()
+RETURNS TRIGGER AS $$
+DECLARE
+    usuario_id_log  INT;
+    registro_id_log INT;
+    detalle_log     TEXT;
+BEGIN
+    usuario_id_log := current_setting('app.usuario_id', true)::INT;
+
+    IF TG_OP = 'DELETE' THEN
+        registro_id_log := (OLD).id_nombramiento;
+        detalle_log := 'Registro eliminado. ID: ' || registro_id_log::TEXT;
+    ELSE
+        registro_id_log := (NEW).id_nombramiento;
+        IF TG_OP = 'UPDATE' THEN
+            detalle_log := 'Registro actualizado. ID: ' || registro_id_log::TEXT;
+        ELSE
+            detalle_log := 'Registro creado. ID: ' || registro_id_log::TEXT;
+        END IF;
+    END IF;
+
+    INSERT INTO sys_log_auditoria (
+        id_usuario, accion, tabla_afectada, registro_id, detalle, fecha_hora
+    ) VALUES (
+        usuario_id_log, TG_OP, TG_TABLE_NAME, registro_id_log, detalle_log, CURRENT_TIMESTAMP
+    );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Trigger para tabla nombramiento
 CREATE TRIGGER tg_auditoria_nombramiento
     AFTER INSERT OR UPDATE OR DELETE ON nombramiento
     FOR EACH ROW
-    EXECUTE FUNCTION fn_auditoria_total();
+    EXECUTE FUNCTION fn_auditoria_nombramiento();
+
+CREATE OR REPLACE FUNCTION fn_auditoria_resolucion()
+RETURNS TRIGGER AS $$
+DECLARE
+    usuario_id_log  INT;
+    registro_id_log INT;
+    detalle_log     TEXT;
+BEGIN
+    usuario_id_log := current_setting('app.usuario_id', true)::INT;
+
+    IF TG_OP = 'DELETE' THEN
+        registro_id_log := (OLD).id_resolucion;
+        detalle_log := 'Registro eliminado. ID: ' || registro_id_log::TEXT;
+    ELSE
+        registro_id_log := (NEW).id_resolucion;
+        IF TG_OP = 'UPDATE' THEN
+            detalle_log := 'Registro actualizado. ID: ' || registro_id_log::TEXT;
+        ELSE
+            detalle_log := 'Registro creado. ID: ' || registro_id_log::TEXT;
+        END IF;
+    END IF;
+
+    INSERT INTO sys_log_auditoria (
+        id_usuario, accion, tabla_afectada, registro_id, detalle, fecha_hora
+    ) VALUES (
+        usuario_id_log, TG_OP, TG_TABLE_NAME, registro_id_log, detalle_log, CURRENT_TIMESTAMP
+    );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
 
 -- Trigger para tabla resolucion
 CREATE TRIGGER tg_auditoria_resolucion
     AFTER INSERT OR UPDATE OR DELETE ON resolucion
     FOR EACH ROW
-    EXECUTE FUNCTION fn_auditoria_total();
+    EXECUTE FUNCTION fn_auditoria_resolucion();
 
-CREATE FUNCTION fn_validar_quorum()
+
+CREATE OR REPLACE FUNCTION fn_validar_quorum()
 RETURNS TRIGGER AS $$
 DECLARE
     quorum_requerido_sesion  INT;
@@ -737,7 +788,7 @@ CREATE TRIGGER tg_validar_quorum
 -- Función consultable de quórum (Issue 11)
 -- A diferencia de fn_validar_quorum que es un trigger automático, esta función es llamada directamente por el controlador para mostrar el estado del quórum en la interfaz antes de votar.
 
-CREATE FUNCTION validar_quorum_legal(p_id_sesion INT)
+CREATE OR REPLACE FUNCTION validar_quorum_legal(p_id_sesion INT)
 RETURNS BOOLEAN AS $$
 DECLARE
     v_presentes     INT;
@@ -1174,13 +1225,13 @@ LEFT JOIN resolucion res ON res.id_punto_agenda = pa.id_punto_agenda;
 CREATE OR REPLACE FUNCTION obtener_historial_atestados(p_id_asambleista INT)
 RETURNS TABLE(
     propuesta_titulo    TEXT,
-    codigo_air          VARCHAR,
-    etapa_propuesta     VARCHAR,
-    estado_propuesta    VARCHAR,
-    tipo_participacion  VARCHAR,
+    codigo_air          VARCHAR(30),
+    etapa_propuesta     VARCHAR(100),
+    estado_propuesta    VARCHAR(100),
+    tipo_participacion  STRING,
     fecha_sesion        DATE,
-    numero_sesion       VARCHAR,
-    numero_resolucion   VARCHAR
+    numero_sesion       VARCHAR(20),
+    numero_resolucion   VARCHAR(30)
 ) AS $$
 BEGIN
     RETURN QUERY
@@ -1197,6 +1248,8 @@ BEGIN
     WHERE hv.asambleista_id = p_id_asambleista
     ORDER BY hv.fecha_sesion NULLS LAST;
 END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================
 -- DATOS SEMILLA — elemento_normativo
 -- Prueba Issue #10 y #16 — Árbol recursivo y trazabilidad
@@ -1205,85 +1258,115 @@ END;
 -- ============================================================
 
 -- ============================================================
--- REGLAMENTO 1: Estatuto Orgánico del ITCR (id=1)
+-- REGLAMENTO 1: Estatuto Orgánico del ITCR
+-- NOTA TÉCNICA: en CockroachDB, las columnas SERIAL generan IDs
+-- no secuenciales (unique_rowid()), por lo que no se puede asumir
+-- id_reglamento=1 ni ids de padre consecutivos como en PostgreSQL.
+-- Se usa una cadena de CTEs con RETURNING para capturar cada id
+-- real y encadenarlo como padre del siguiente insert.
 -- ============================================================
 
--- TÍTULO I
+WITH
+tit1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, NULL, (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Título'), 'Título I', 'De la Naturaleza y Fines del Instituto', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+tit2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, NULL, (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Título'), 'Título II', 'De la Estructura Orgánica', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- CAPÍTULO 1 (hijo de Título I)
+cap1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM tit1), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Capítulo'), 'Capítulo I', 'Disposiciones Generales', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- CAPÍTULO 2 (hijo de Título I)
+cap2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM tit1), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Capítulo'), 'Capítulo II', 'De los Principios Institucionales', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- ARTÍCULO 1 (hijo de Capítulo I)
+art1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM cap1), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Artículo'), 'Artículo 1', 'El Instituto Tecnológico de Costa Rica es una institución nacional autónoma de educación superior universitaria, dedicada a la docencia, la investigación y la extensión de la tecnología y las ciencias conexas para el desarrollo de Costa Rica. Fue creado mediante Ley N.° 4777 del 10 de junio de 1971 y goza de independencia para el desempeño de sus funciones y de plena capacidad jurídica para adquirir derechos y contraer obligaciones.', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- ARTÍCULO 2 (hijo de Capítulo I)
+art2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM cap1), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Artículo'), 'Artículo 2', 'Son fines del Instituto Tecnológico de Costa Rica contribuir al desarrollo integral del país, mediante la formación de recursos humanos, la investigación y la extensión; manteniendo el liderazgo científico, tecnológico y técnico, la creatividad y el espíritu emprendedor del personal y de los estudiantes, para que constituyan fuerzas activas del desarrollo económico, social y ambiental sostenible del país.', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- INCISO a) (hijo de Artículo 2)
+inc_a1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM art2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Inciso'), 'a)', 'Formar profesionales en el campo tecnológico que contribuyan al desarrollo de Costa Rica, mediante una sólida preparación científica, tecnológica y humanística.', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- INCISO b) (hijo de Artículo 2)
+inc_b1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM art2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Inciso'), 'b)', 'Generar, adaptar e incorporar en forma sistemática y continua la tecnología necesaria para el desarrollo nacional, con énfasis en la pequeña y mediana empresa.', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- INCISO c) (hijo de Artículo 2)
+inc_c1 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM art2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Inciso'), 'c)', 'Contribuir al mejoramiento de la calidad de vida del pueblo costarricense mediante la proyección de sus actividades a la atención y solución de los problemas prioritarios del país, a fin de edificar una sociedad más justa.', 3, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- ARTÍCULO 3 (hijo de Capítulo II)
+art3 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM cap2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Artículo'), 'Artículo 3', 'El Instituto Tecnológico de Costa Rica se fundamenta en los siguientes principios: la búsqueda permanente de la excelencia académica; el compromiso con la democracia, la libertad, la justicia social y la paz; el respeto a la dignidad humana y a la diversidad cultural; el apego irrestricto a la ética y a la moral; la transparencia y la rendición de cuentas como práctica institucional permanente.', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- INCISO a) (hijo de Artículo 3)
+inc_a2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM art3), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Inciso'), 'a)', 'Excelencia académica: el Instituto buscará permanentemente los más altos estándares de calidad en todas sus actividades de docencia, investigación y extensión.', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- INCISO b) (hijo de Artículo 3)
+inc_b2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM art3), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Inciso'), 'b)', 'Compromiso social: el Instituto orientará sus actividades hacia la atención de las necesidades y problemas de la sociedad costarricense, con especial atención a los sectores más vulnerables de la población.', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- CAPÍTULO 1 de Título II (hijo de Título II)
+cap1_tit2 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM tit2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Capítulo'), 'Capítulo I', 'De los Órganos de Gobierno', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+),
+-- ARTÍCULO 4 (hijo de Capítulo I de Título II)
+art4 AS (
+    INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
+    SELECT id_reglamento, (SELECT id_elemento FROM cap1_tit2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Artículo'), 'Artículo 4', 'La estructura orgánica del Instituto Tecnológico de Costa Rica estará conformada por los siguientes órganos superiores de gobierno: la Asamblea Institucional Representativa, el Consejo Institucional, la Rectoría, las Vicerrectorías, los Centros Académicos y las unidades académicas y administrativas que se creen por reglamento interno.', 1, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+    FROM reglamento WHERE sigla = 'EOTEC'
+    RETURNING id_elemento
+)
+-- ARTÍCULO 5 (hijo de Capítulo I de Título II) — cierra la cadena
 INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, NULL, 10, 'Título I', 'De la Naturaleza y Fines del Instituto', 1, '2000-01-01', 25);
--- id = 1
-
--- TÍTULO II
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, NULL, 10, 'Título II', 'De la Estructura Orgánica', 2, '2000-01-01', 25);
--- id = 2
-
--- ── CAPÍTULO 1 (hijo de Título I → id 1)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 1, 11, 'Capítulo I', 'Disposiciones Generales', 1, '2000-01-01', 25);
--- id = 3
-
--- ── CAPÍTULO 2 (hijo de Título I → id 1)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 1, 11, 'Capítulo II', 'De los Principios Institucionales', 2, '2000-01-01', 25);
--- id = 4
-
--- ──── ARTÍCULO 1 (hijo de Capítulo I → id 3)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 3, 12, 'Artículo 1', 'El Instituto Tecnológico de Costa Rica es una institución nacional autónoma de educación superior universitaria, dedicada a la docencia, la investigación y la extensión de la tecnología y las ciencias conexas para el desarrollo de Costa Rica. Fue creado mediante Ley N.° 4777 del 10 de junio de 1971 y goza de independencia para el desempeño de sus funciones y de plena capacidad jurídica para adquirir derechos y contraer obligaciones.', 1, '2000-01-01', 25);
--- id = 5
-
--- ──── ARTÍCULO 2 (hijo de Capítulo I → id 3)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 3, 12, 'Artículo 2', 'Son fines del Instituto Tecnológico de Costa Rica contribuir al desarrollo integral del país, mediante la formación de recursos humanos, la investigación y la extensión; manteniendo el liderazgo científico, tecnológico y técnico, la creatividad y el espíritu emprendedor del personal y de los estudiantes, para que constituyan fuerzas activas del desarrollo económico, social y ambiental sostenible del país.', 2, '2000-01-01', 25);
--- id = 6
-
--- ────── INCISO a) (hijo de Artículo 2 → id 6)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 6, 13, 'a)', 'Formar profesionales en el campo tecnológico que contribuyan al desarrollo de Costa Rica, mediante una sólida preparación científica, tecnológica y humanística.', 1, '2000-01-01', 25);
--- id = 7
-
--- ────── INCISO b) (hijo de Artículo 2 → id 6)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 6, 13, 'b)', 'Generar, adaptar e incorporar en forma sistemática y continua la tecnología necesaria para el desarrollo nacional, con énfasis en la pequeña y mediana empresa.', 2, '2000-01-01', 25);
--- id = 8
-
--- ────── INCISO c) (hijo de Artículo 2 → id 6)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 6, 13, 'c)', 'Contribuir al mejoramiento de la calidad de vida del pueblo costarricense mediante la proyección de sus actividades a la atención y solución de los problemas prioritarios del país, a fin de edificar una sociedad más justa.', 3, '2000-01-01', 25);
--- id = 9
-
--- ──── ARTÍCULO 3 (hijo de Capítulo II → id 4)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 4, 12, 'Artículo 3', 'El Instituto Tecnológico de Costa Rica se fundamenta en los siguientes principios: la búsqueda permanente de la excelencia académica; el compromiso con la democracia, la libertad, la justicia social y la paz; el respeto a la dignidad humana y a la diversidad cultural; el apego irrestricto a la ética y a la moral; la transparencia y la rendición de cuentas como práctica institucional permanente.', 1, '2000-01-01', 25);
--- id = 10
-
--- ────── INCISO a) (hijo de Artículo 3 → id 10)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 10, 13, 'a)', 'Excelencia académica: el Instituto buscará permanentemente los más altos estándares de calidad en todas sus actividades de docencia, investigación y extensión.', 1, '2000-01-01', 25);
--- id = 11
-
--- ────── INCISO b) (hijo de Artículo 3 → id 10)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 10, 13, 'b)', 'Compromiso social: el Instituto orientará sus actividades hacia la atención de las necesidades y problemas de la sociedad costarricense, con especial atención a los sectores más vulnerables de la población.', 2, '2000-01-01', 25);
--- id = 12
-
--- ── CAPÍTULO 1 (hijo de Título II → id 2)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 2, 11, 'Capítulo I', 'De los Órganos de Gobierno', 1, '2000-01-01', 25);
--- id = 13
-
--- ──── ARTÍCULO 4 (hijo de Capítulo I Título II → id 13)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 13, 12, 'Artículo 4', 'La estructura orgánica del Instituto Tecnológico de Costa Rica estará conformada por los siguientes órganos superiores de gobierno: la Asamblea Institucional Representativa, el Consejo Institucional, la Rectoría, las Vicerrectorías, los Centros Académicos y las unidades académicas y administrativas que se creen por reglamento interno.', 1, '2000-01-01', 25);
--- id = 14
-
--- ──── ARTÍCULO 5 (hijo de Capítulo I Título II → id 13)
-INSERT INTO elemento_normativo (id_reglamento, id_elemento_padre, id_nivel_reglamento, numero_etiqueta, contenido_texto, orden, fecha_inicio_vigencia, id_estado_vigencia)
-VALUES (1, 13, 12, 'Artículo 5', 'La Asamblea Institucional Representativa es el órgano superior de deliberación y decisión del Instituto. Le corresponde conocer y resolver los asuntos de mayor trascendencia institucional, entre ellos la reforma al Estatuto Orgánico, la aprobación de las políticas generales y la elección de las autoridades superiores del Instituto.', 2, '2000-01-01', 25);
--- id = 15
-
-$$ LANGUAGE plpgsql;
+SELECT id_reglamento, (SELECT id_elemento FROM cap1_tit2), (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'NIVEL_REGLAMENTO' AND nombre = 'Artículo'), 'Artículo 5', 'La Asamblea Institucional Representativa es el órgano superior de deliberación y decisión del Instituto. Le corresponde conocer y resolver los asuntos de mayor trascendencia institucional, entre ellos la reforma al Estatuto Orgánico, la aprobación de las políticas generales y la elección de las autoridades superiores del Instituto.', 2, '2000-01-01', (SELECT id_item FROM catalogo_maestro WHERE grupo_catalogo = 'ESTADO_VIGENCIA' AND nombre = 'Vigente')
+FROM reglamento WHERE sigla = 'EOTEC';
 
 -- =============================================================================
 
@@ -1357,3 +1440,41 @@ FROM sys_usuario u, sys_rol r
 WHERE (u.username = 'admin01'    AND r.nombre_rol = 'ADMIN')
    OR (u.username = 'consulta01' AND r.nombre_rol = 'CONSULTA')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- VISTAS SQL — Issue #16 Reportería Administrativa
+-- ============================================================
+
+-- Vista 1: Certificaciones emitidas por mes dado un año
+CREATE OR REPLACE VIEW vista_certificaciones_por_mes AS
+SELECT
+    EXTRACT(YEAR  FROM fecha_emision)::INT AS anio,
+    EXTRACT(MONTH FROM fecha_emision)::INT AS mes,
+    COUNT(*)                               AS total_certificaciones
+FROM certificacion_emitida
+GROUP BY
+    EXTRACT(YEAR  FROM fecha_emision),
+    EXTRACT(MONTH FROM fecha_emision)
+ORDER BY anio, mes;
+
+-- Vista 2: Nombramientos activos agrupados por sector
+CREATE OR REPLACE VIEW vista_nombramientos_por_sector AS
+SELECT
+    cm.nombre          AS sector,
+    COUNT(*)           AS total_nombramientos
+FROM nombramiento n
+JOIN catalogo_maestro cm
+    ON n.sector_id = cm.id_item
+WHERE n.estado    = 'ACTIVO'
+  AND (n.fecha_fin IS NULL OR n.fecha_fin >= CURRENT_DATE)
+GROUP BY cm.nombre
+ORDER BY total_nombramientos DESC;
+
+-- Vista 3: Total de folios emitidos agrupados por año
+CREATE OR REPLACE VIEW vista_folios_por_anio AS
+SELECT
+    EXTRACT(YEAR FROM fecha_emision)::INT AS anio,
+    COUNT(*)                              AS total_folios
+FROM certificacion_emitida
+GROUP BY EXTRACT(YEAR FROM fecha_emision)
+ORDER BY anio DESC;

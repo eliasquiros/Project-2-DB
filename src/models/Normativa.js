@@ -52,6 +52,18 @@ const obtenerReglamentos = async () => {
     return resultado.rows
 }
 
+// Obtener un reglamento por su id (utilizado por el controlador para validar FK)
+const obtenerReglamentoPorId = async (id_reglamento) => {
+    const query = `
+        SELECT id_reglamento, nombre_normativa, sigla
+        FROM reglamento
+        WHERE id_reglamento = $1
+        LIMIT 1
+    `
+    const resultado = await pool.query(query, [id_reglamento])
+    return resultado.rows[0] || null
+}
+
 // Construye árbol anidado desde lista plana
 const construirArbolAnidado = (filas) => {
     const mapa = {}
@@ -124,20 +136,19 @@ const obtenerTrazabilidad = async (id_elemento) => {
             r.numero_resolucion AS acuerdo,
 
             -- Fecha exacta de la sesión donde se aprobó
-            s.fecha AS fecha_sesion,
-
+            s.fecha AS fecha_sesion
         FROM elemento_normativo e
-        JOIN catalogo_maestro cm
-            ON e.id_estado_vigencia = cm.id_item
-        LEFT JOIN reforma_aplicada ra
-            ON ra.id_elemento_normativo = e.id_elemento
-        LEFT JOIN resolucion r
-            ON ra.id_resolucion = r.id_resolucion
-        LEFT JOIN sesiones s
-            ON r.id_sesion = s.id_sesion
-        WHERE e.id_elemento = $1
-        ORDER BY ra.fecha_inicio_vigencia DESC
-        LIMIT 1
+            JOIN catalogo_maestro cm
+                ON e.id_estado_vigencia = cm.id_item
+            LEFT JOIN reforma_aplicada ra
+                ON ra.id_elemento_normativo = e.id_elemento
+            LEFT JOIN resolucion r
+                ON ra.id_resolucion = r.id_resolucion
+            LEFT JOIN sesiones s
+                ON r.id_sesion = s.id_sesion
+            WHERE e.id_elemento = $1::bigint
+        
+            LIMIT 1
     `
     const resultado = await pool.query(query, [id_elemento])
 
@@ -151,6 +162,7 @@ module.exports = {
     insertarReforma,
     obtenerHistorialReformas,
     obtenerReglamentos,
+    obtenerReglamentoPorId,
     generarArbolRecursivo,
     obtenerTrazabilidad
 };

@@ -26,6 +26,10 @@
     /* Bordes */
     --radio-borde: 6px;      /* Redondez de esquinas en tarjetas y botones */
     --sombra:      0 2px 8px rgba(0, 0, 0, 0.08);
+    /* Tipografía y escala base */
+    --font-family-base: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-size-base: 16px;
+    --line-height-base: 1.6;
 }
 
 
@@ -41,11 +45,11 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font-family-base);
     background-color: var(--color-fondo);
     color: var(--color-texto);
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
 }
 
 
@@ -116,6 +120,49 @@ body {
     padding-bottom: var(--espacio-sm);
     border-bottom: 2px solid var(--color-borde);
 }
+
+/* Encabezado de página reutilizable */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--espacio-lg);
+    margin-bottom: var(--espacio-md);
+}
+
+.page-header .tarjeta-titulo {
+    font-size: 1.25rem;
+    color: var(--color-primario);
+    margin: 0;
+    padding: 0;
+    border-bottom: none;
+}
+
+.page-subtitle {
+    margin-top: 0.25rem;
+    color: var(--color-texto-suave);
+    font-size: 0.95rem;
+}
+
+.page-actions { display: flex; gap: var(--espacio-sm); align-items: center; }
+
+/* Grid informativo usado en páginas de detalle */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--espacio-md);
+}
+
+.info-item label { font-size: 0.85rem; color: var(--color-texto-suave); display: block; margin-bottom: 0.25rem; }
+.info-item span { font-size: 1rem; color: var(--color-texto); font-weight: 700; }
+
+/* Modales globales */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+.modal-overlay.activo { display: flex; }
+.modal { background: var(--color-blanco); border-radius: var(--radio-borde); padding: var(--espacio-lg); width: 100%; max-width: 520px; box-shadow: 0 12px 40px rgba(2,6,23,0.12); }
+
+.error { color: var(--color-error); }
+.mensaje-exito { display: none; }
 
 
 /* ── 6. BOTONES ──────────────────────────────────────────────
